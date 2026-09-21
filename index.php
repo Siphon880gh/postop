@@ -423,6 +423,7 @@ const showModal=id=>document.getElementById(id)?.showModal();
 const accountTrigger=document.getElementById('account-trigger');
 if(accountTrigger)document.querySelector('.top-actions')?.prepend(accountTrigger);
 const editMode=document.getElementById('editMode');
+if(editMode&&!document.querySelector('.photo-label-edit.edit-only'))editMode.hidden=true;
 if(editMode){
   editMode.addEventListener('click',()=>{
     const enabled=editMode.getAttribute('aria-pressed')!=='true';
