@@ -244,10 +244,12 @@ function avatar_markup(array $p,string $class='avatar'):string{
     return '<span class="'.$class.'"><img src="'.$src.'" alt="Portrait placeholder for '.h($p['name']).'"></span>';
 }
 function notes_trigger(string $id,int $count,string $kind='Notes'):string{
+    if($id==='notes-library'&&$kind==='Notes')$kind='Library notes';
     $has=$count>0;
     $label=$has?$kind:'No Notes';
     $aria=$has?($count===1?'1 note':$count.' notes'):'No notes';
     if($kind==='Day notes')$aria=$has?($count===1?'1 day note':$count.' day notes'):'No day notes';
+    if($kind==='Library notes')$aria=$has?($count===1?'1 library note':$count.' library notes'):'No library notes';
     return '<button type="button" class="notes-btn '.($has?'has-notes':'no-notes').'" onclick="showModal(\''.h($id).'\')" aria-label="'.$aria.'"><span>'.$label.'</span>'.($has?'<b aria-hidden="true">'.$count.'</b>':'').'</button>';
 }
 function kg_to_lb(float $kg):float{return round($kg*2.2046226218,1);}
