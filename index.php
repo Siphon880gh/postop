@@ -167,7 +167,7 @@ $account=load_account();
 $authed=($_SESSION['auth']??false)===true;
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $op=$_POST['op']??'';
-    if($op==='login'){if(hash_equals($account['username'],trim((string)($_POST['username']??'')))&&password_verify((string)($_POST['password']??''),$account['password_hash'])){session_regenerate_id(true);$_SESSION=['auth'=>true,'csrf'=>bin2hex(random_bytes(24)),'flash'=>'Welcome back.'];header('Location: index.php');exit;}$_SESSION['login_error']='Incorrect username or password.';header('Location: index.php');exit;}
+    if($op==='login'){if(hash_equals($account['username'],trim((string)($_POST['username']??'')))&&password_verify((string)($_POST['password']??''),$account['password_hash'])){session_regenerate_id(true);$_SESSION=['auth'=>true,'csrf'=>bin2hex(random_bytes(24))];header('Location: index.php');exit;}$_SESSION['login_error']='Incorrect username or password.';header('Location: index.php');exit;}
     if(!$authed) fail('Authentication required.',401);
     if(!hash_equals((string)($_SESSION['csrf']??''),(string)($_POST['csrf']??'')))fail('Invalid CSRF token.',403);
     if($op==='logout'){$_SESSION=[];session_destroy();header('Clear-Site-Data: "cache", "storage"');header('Location: index.php');exit;}
