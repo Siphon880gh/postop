@@ -1,7 +1,7 @@
 {
   "current_epic_id": "E0",
-  "status": "in_progress",
-  "last_updated_iso": "2026-09-21T05:53:58Z",
+  "status": "blocked_human",
+  "last_updated_iso": "2026-09-21T06:30:00Z",
   "decisions": {
     "platform": "Responsive PHP web PWA for desktop, tablet, and mobile",
     "mvp_scope": "Demo authentication and one seeded patient; progress libraries and timeline; longitudinal wounds and daily updates; scoped notes; secure ordered angle-photo gallery",
@@ -61,5 +61,269 @@
     "inactive_wound_history_behavior",
     "revision_conflict_policy"
   ],
-  "next_action": "Await explicit user confirmation before milestone decomposition or implementation"
+  "next_action": "Human confirmation is required for E0.M1 pending_confirmation; after confirmation run loops/graph.md and continue automatically.",
+  "current_milestone_id": "E0.M1",
+  "orchestration_prompts": {
+    "status": "complete",
+    "path": "loops/",
+    "completed_at": "2026-09-21T06:30:00Z",
+    "verification": [
+      "JSON state parsed",
+      "all graph milestone IDs have epic prompt coverage",
+      "loop retry limit is five"
+    ]
+  },
+  "execution": {
+    "max_feature_attempts": 5,
+    "epics": {
+      "E0": {
+        "status": "blocked_human",
+        "milestones": {
+          "E0.M1": {
+            "status": "blocked_human",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": "Explicit confirmation is required for unresolved product decisions before shared contracts or implementation.",
+            "next_attempt": "Resume when a human confirms or edits the pending_confirmation decisions."
+          },
+          "E0.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E0.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E1": {
+        "status": "pending",
+        "milestones": {
+          "E1.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E1.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E1.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E2": {
+        "status": "pending",
+        "milestones": {
+          "E2.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E2.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E2.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E3": {
+        "status": "pending",
+        "milestones": {
+          "E3.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E3.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E3.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E4": {
+        "status": "pending",
+        "milestones": {
+          "E4.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E4.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E5": {
+        "status": "pending",
+        "milestones": {
+          "E5.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E5.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E5.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E6": {
+        "status": "pending",
+        "milestones": {
+          "E6.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E6.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E6.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E6.M4": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E6.M5": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      },
+      "E7": {
+        "status": "pending",
+        "milestones": {
+          "E7.M1": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E7.M2": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E7.M3": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          },
+          "E7.M4": {
+            "status": "pending",
+            "attempts": 0,
+            "tasks": {},
+            "verification_history": [],
+            "failure_summary": null,
+            "next_attempt": null
+          }
+        }
+      }
+    }
+  }
 }

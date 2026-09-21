@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Postop implementation state",
+  "type": "object",
+  "required": ["current_epic_id", "status", "last_updated_iso", "identified_epics", "execution"],
+  "properties": {
+    "current_epic_id": { "type": ["string", "null"] },
+    "current_milestone_id": { "type": ["string", "null"] },
+    "status": { "enum": ["planning", "ready", "in_progress", "blocked_human", "blocked_failure", "complete"] },
+    "last_updated_iso": { "type": "string", "format": "date-time" },
+    "identified_epics": { "type": "array", "minItems": 7 },
+    "execution": {
+      "type": "object",
+      "required": ["max_feature_attempts", "epics"],
+      "properties": {
+        "max_feature_attempts": { "const": 5 },
+        "epics": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/workItem" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "verification": {
+      "type": "object",
+      "required": ["command", "result", "recorded_at"],
+      "properties": {
+        "command": { "type": "string" },
+        "exit_code": { "type": ["integer", "null"] },
+        "result": { "enum": ["passed", "failed", "blocked"] },
+        "summary": { "type": "string" },
+        "recorded_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "workItem": {
+      "type": "object",
+      "required": ["status", "milestones"],
+      "properties": {
+        "status": { "enum": ["pending", "in_progress", "blocked_human", "blocked_failure", "complete"] },
+        "milestones": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["status", "attempts", "verification_history"],
+            "properties": {
+              "status": { "enum": ["pending", "in_progress", "blocked_human", "blocked_failure", "complete"] },
+              "attempts": { "type": "integer", "minimum": 0, "maximum": 5 },
+              "tasks": { "type": "object" },
+              "verification_history": { "type": "array", "items": { "$ref": "#/$defs/verification" } },
+              "failure_summary": { "type": ["string", "null"] },
+              "next_attempt": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}
