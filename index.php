@@ -415,6 +415,7 @@ function css():string{return <<<'CSS'
 .photo-accordion .chev{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:#edf5f2;font-size:1.65rem;line-height:1;color:var(--brand)}.photo-accordion .chev::before{content:'›'}.photo-accordion details[open]>summary .chev::before{content:'⌄'}.next-photo-control{display:flex;align-items:center;gap:6px}.angle-advance{min-width:48px;min-height:48px;padding:0;font-size:2rem;line-height:1}.next-options{position:relative}.next-options summary{display:grid;place-items:center;min-width:38px;min-height:38px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:0}.next-options summary::-webkit-details-marker{display:none}.next-options summary::before{content:'⌄';font-size:1.3rem;line-height:1}.next-options summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.next-options>div{position:absolute;right:0;z-index:4;width:max-content;min-width:190px;margin-top:6px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}.next-options button{display:flex;width:100%;justify-content:space-between;gap:12px;background:transparent;color:var(--ink);padding:.55rem .65rem;text-align:left}.next-options button:hover{background:#edf5f2;filter:none}.next-options button[aria-pressed="true"]{color:var(--brand);font-weight:850}.next-options small{color:var(--muted);font-size:.68rem}.next-options button[aria-pressed="true"] small{color:inherit}
 .patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}#photo-gallery-card{scroll-margin-top:88px}
 footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}
+footer .footer-status{display:inline-flex;align-items:center;margin-top:8px}
 .account-trigger{min-height:0;padding:.25rem 0;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:.86rem;font-weight:700;box-shadow:none}.account-trigger:hover{background:transparent;color:var(--ink);filter:none;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
 CSS;}
 function js():string{return <<<'JS'
@@ -603,7 +604,9 @@ if(lightbox){
     if(e.key==='ArrowRight'){e.preventDefault();lightboxGo(1)}
   });
 }
-const network=document.getElementById('network'); function net(){if(!network)return;network.textContent=navigator.onLine?'Online':'Offline';network.classList.toggle('offline',!navigator.onLine)} addEventListener('online',net);addEventListener('offline',net);net();
+const network=document.getElementById('network');
+if(network){network.classList.add('footer-status');document.querySelector('footer')?.append(network)}
+function net(){if(!network)return;network.textContent=navigator.onLine?'Online':'Offline';network.classList.toggle('offline',!navigator.onLine)} addEventListener('online',net);addEventListener('offline',net);net();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('index.php?action=service-worker',{scope:'./'});
 const DB='skin-wound-viewer',CACHE='swcv-patient-sample-patient';
 function db(){return new Promise((ok,no)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('meta'))d.createObjectStore('meta');if(!d.objectStoreNames.contains('outbox'))d.createObjectStore('outbox',{keyPath:'id'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
