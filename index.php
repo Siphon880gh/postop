@@ -41,15 +41,51 @@ function seed(string $dataFile, string $patientDir): void {
     $today = new DateTimeImmutable('today'); $start = $today->modify('-12 days'); $partial = $today->modify('-2 days')->format('Y-m-d'); $complete = $today->modify('-1 day')->format('Y-m-d');
     $serials = ['IMG-7F3C92','IMG-A91D40','IMG-2B81EF']; $photos=[];
     foreach ($serials as $i=>$serial) { $id='photo-'.($i+1); $name=sprintf('%02d-shot-%s.svg',$i+1,$id); $dir="$patientDir/libraries/left-heel/wounds/lateral-incision/$complete"; if (!is_dir($dir)) mkdir($dir,0770,true); file_put_contents("$dir/$name",placeholder($serial)); $photos[]=['id'=>$id,'angle'=>'','caption'=>'Seeded reference image','created_at'=>now(),'sort_order'=>$i+1,'filename'=>$name,'mime'=>'image/svg+xml','bytes'=>filesize("$dir/$name")]; }
-    $data=['patient'=>['id'=>PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'revision'=>1,'libraries'=>[
+    $priorId='photo-seeded-prior-date';$priorName='01-shot-'.$priorId.'.svg';$priorDir="$patientDir/libraries/left-heel/wounds/lateral-incision/$partial";
+    if (!is_dir($priorDir)) mkdir($priorDir,0770,true); file_put_contents("$priorDir/$priorName",placeholder('IMG-4D2A71'));
+    $priorPhotos=[['id'=>$priorId,'angle'=>'Progress check','caption'=>'Seeded prior-day reference image','created_at'=>now(),'sort_order'=>1,'filename'=>$priorName,'mime'=>'image/svg+xml','bytes'=>filesize("$priorDir/$priorName")]];
+    $data=['patient'=>['id'=>PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>2,'revision'=>1,'libraries'=>[
       ['id'=>'left-heel','name'=>'Left Heel Post-op Recovery','type'=>'Postoperative Wound','custom_type'=>'','start_date'=>$start->format('Y-m-d'),'description'=>'Track recovery milestones and dressing observations.','revision'=>1,'notes'=>[['id'=>'note-lib-1','text'=>'Review progress at each dressing change.','created_at'=>now()]],'day_notes'=>[$partial=>[['id'=>'note-day-1','text'=>'Patient reported improved comfort.','created_at'=>now()]]],'wounds'=>[
-        ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]],'updates'=>[$partial=>['note'=>'Dressing changed; no image required.','photos'=>[]],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
+        ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]],'updates'=>[$partial=>['note'=>'Dressing changed; prior progress image available.','photos'=>$priorPhotos],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
         ['id'=>'donor-site','name'=>'Donor site','location'=>'Posterior heel','active'=>true,'notes'=>[],'updates'=>[$complete=>['note'=>'Clean and dry.','photos'=>[]]]]
       ]],
       ['id'=>'mole-monitor','name'=>'Mole Monitoring','type'=>'Mole Monitoring','custom_type'=>'','start_date'=>$today->modify('-20 days')->format('Y-m-d'),'description'=>'Demo longitudinal comparison library.','revision'=>1,'notes'=>[],'day_notes'=>[],'wounds'=>[['id'=>'medial-site','name'=>'Medial site','location'=>'Left ankle','active'=>true,'notes'=>[],'updates'=>[]]]]
     ]]; atomic_write($dataFile,$data);
 }
+function seed_additional_demo_photo_date(string $dataFile,string $patientDir): void {
+    $raw=@file_get_contents($dataFile);$data=$raw===false?null:json_decode($raw,true);
+    if(!is_array($data)||(int)($data['seed_version']??1)>=2||(string)($data['patient']['id']??'')!==PATIENT_ID)return;
+    foreach($data['libraries'] as &$library){
+        if(($library['id']??'')!=='left-heel')continue;
+        foreach(($library['wounds']??[]) as &$wound){
+            if(($wound['id']??'')!=='lateral-incision')continue;
+            $updates=$wound['updates']??[];$photoDates=[];$priorDate=null;
+            foreach($updates as $ds=>$update){
+                if(!empty($update['photos']))$photoDates[]=$ds;
+            }
+            if(!$photoDates)break;
+            rsort($photoDates);$latestPhotoDate=$photoDates[0];
+            foreach($updates as $ds=>$update)if($ds<$latestPhotoDate&&empty($update['photos'])&&($priorDate===null||$ds>$priorDate))$priorDate=$ds;
+            if($priorDate===null)break;
+            $id='photo-seeded-prior-date';$exists=false;
+            foreach(($wound['updates'][$priorDate]['photos']??[]) as $photo)if(($photo['id']??'')===$id)$exists=true;
+            if(!$exists){
+                $name='01-shot-'.$id.'.svg';$dir="$patientDir/libraries/left-heel/wounds/lateral-incision/$priorDate";
+                if(!is_dir($dir)&&!mkdir($dir,0770,true))fail('Could not create seeded photo storage.',500);
+                $path="$dir/$name";
+                if(!is_file($path)&&file_put_contents($path,placeholder('IMG-4D2A71'))===false)fail('Could not create the seeded prior-day photo.',500);
+                $wound['updates'][$priorDate]['photos'][]=['id'=>$id,'angle'=>'Progress check','caption'=>'Seeded prior-day reference image','created_at'=>now(),'sort_order'=>count($wound['updates'][$priorDate]['photos'])+1,'filename'=>$name,'mime'=>'image/svg+xml','bytes'=>filesize($path)];
+                $wound['updates'][$priorDate]['note']='Dressing changed; prior progress image available.';
+            }
+            $library['revision']=($library['revision']??0)+1;
+            $data['revision']=($data['revision']??0)+1;$data['seed_version']=2;atomic_write($dataFile,$data);return;
+        }
+        unset($wound);
+    }
+    unset($library);
+}
 seed($dataFile,$patientDir);
+seed_additional_demo_photo_date($dataFile,$patientDir);
 function seed_account(string $accountFile): void {
     if (is_file($accountFile)) return;
     atomic_write($accountFile,[
