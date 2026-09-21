@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Generic male avatar placeholder">
+  <rect width="640" height="800" fill="#07090b"/>
+  <path fill="#3f5357" d="M230 214c10-54 44-96 90-96s80 42 90 96c6 28 2 48-8 62-20 8-52 14-82 14s-62-6-82-14c-10-14-14-34-8-62z"/>
+  <circle cx="320" cy="262" r="80" fill="#8aa0a4"/>
+  <path fill="#6d8589" d="M150 560c22-100 78-156 170-156s148 56 170 156v160H150z"/>
+  <text x="320" y="756" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">AVATAR-MALE</text>
+</svg>
