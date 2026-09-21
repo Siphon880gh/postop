@@ -84,8 +84,6 @@ function seed_additional_demo_photo_date(string $dataFile,string $patientDir): v
     }
     unset($library);
 }
-seed($dataFile,$patientDir);
-seed_additional_demo_photo_date($dataFile,$patientDir);
 function seed_account(string $accountFile): void {
     if (is_file($accountFile)) return;
     atomic_write($accountFile,[
@@ -110,7 +108,6 @@ function current_page_url(): string {
     unset($query['action']);
     return 'index.php'.($query?'?'.http_build_query($query,'','&',PHP_QUERY_RFC3986):'');
 }
-seed_account($accountFile);
 function placeholders_dir(): string { return __DIR__ . '/placeholders'; }
 function avatar_svg(string $serial, string $gender): string {
     $female=strtolower($gender)==='female';
@@ -133,7 +130,6 @@ function ensure_avatar_assets(string $patientDir): void {
         if(is_string($src)) file_put_contents($dest,str_replace('>AVATAR-FEMALE<','>IMG-AVATAR-FEMALE<',$src));
     }
 }
-ensure_avatar_assets($patientDir);
 function patient_profile(array $d): array {
     $p=is_array($d['patient']??null)?$d['patient']:[];
     $gender=(string)($p['gender']??'Female');
@@ -162,6 +158,20 @@ if($action==='icon'){header('Content-Type: image/svg+xml');$s=($_GET['size']??'1
 if($action==='service-worker'){header('Content-Type: application/javascript');header('Service-Worker-Allowed: ./');echo <<<'JS'
 const SHELL='swcv-shell-v1'; self.addEventListener('install',e=>e.waitUntil(caches.open(SHELL).then(c=>c.add('./index.php')).then(()=>self.skipWaiting()))); self.addEventListener('activate',e=>e.waitUntil(self.clients.claim())); self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=='GET')return;if(u.searchParams.get('action')==='media'){e.respondWith(caches.match(e.request).then(x=>x||fetch(e.request)));return}if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).catch(()=>caches.match(e.request).then(x=>x||caches.match('./index.php'))))}});
 JS;exit;}
+
+if(!is_file($dataFile)||!is_file($accountFile)){
+    $_SESSION['setup_csrf']??=bin2hex(random_bytes(24));
+    if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['op']??'')==='create_sample_pack'){
+        if(!hash_equals((string)$_SESSION['setup_csrf'],(string)($_POST['setup_csrf']??'')))fail('Invalid setup request.',403);
+        seed($dataFile,$patientDir);
+        seed_additional_demo_photo_date($dataFile,$patientDir);
+        seed_account($accountFile);
+        ensure_avatar_assets($patientDir);
+        header('Location: index.php');exit;
+    }
+    first_run_page((string)$_SESSION['setup_csrf']);
+}
+ensure_avatar_assets($patientDir);
 
 $account=load_account();
 $authed=($_SESSION['auth']??false)===true;
@@ -244,6 +254,8 @@ $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$vi
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
 function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small></footer>';}
+function first_run_page(string $setupCsrf):void{?>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Set up · <?=APP_NAME?></title><style><?=css()?></style></head><body><main class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">First run</p><h1>Start with a sample patient pack</h1><p class="muted">No records or browser storage have been created yet. Create a local sample pack to explore the viewer.</p><form method="post"><input type="hidden" name="op" value="create_sample_pack"><input type="hidden" name="setup_csrf" value="<?=h($setupCsrf)?>"><button type="submit">Create sample patient pack</button></form><p class="muted tiny">This creates the local <code>storage/</code> folder and the demo sign-in account on this machine.</p></section></main><?=app_footer()?></body></html><?php exit;}
 function sync_count(array $d):int{$n=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)$n+=count($u['photos']);return $n;}
 function app_url(string $library,string $date,string $view='day'):string{return '?patient='.PATIENT_ID.'&library='.rawurlencode($library).'&date='.rawurlencode($date).'&view='.rawurlencode($view);}
 function photo_count_on_date(array $l,string $ds):int{$n=0;foreach($l['wounds'] as $w)$n+=count($w['updates'][$ds]['photos']??[]);return $n;}
