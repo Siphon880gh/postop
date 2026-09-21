@@ -459,6 +459,7 @@ function css():string{return <<<'CSS'
 .patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}#photo-gallery-card{scroll-margin-top:88px}
 footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}
 footer .footer-status{display:inline-flex;align-items:center;margin-top:8px}
+footer .footer-status{cursor:pointer;border:0}footer .footer-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
 .sync-card-frame{position:relative;margin-top:18px}.sync-card-frame .sync-card{margin-top:0}.sync-clear{position:absolute;top:7px;right:7px;z-index:1;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand2);font-size:1.3rem;font-weight:500;line-height:1}.sync-clear:hover{background:#d5e6e9;filter:none}
 .account-trigger{min-height:0;padding:.25rem 0;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:.86rem;font-weight:700;box-shadow:none}.account-trigger:hover{background:transparent;color:var(--ink);filter:none;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
 .top-actions #editMode{display:none}.edit-mode-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 22px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:#fff}.edit-mode-bar>span{display:flex;align-items:baseline;gap:8px;min-width:0}.edit-mode-bar strong{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}.edit-mode-bar small{color:var(--muted);font-size:.75rem}.edit-mode-bar #editMode{display:inline-flex;margin-left:auto}
@@ -639,7 +640,23 @@ if(lightbox){
   });
 }
 const network=document.getElementById('network');
-if(network){network.classList.add('footer-status');document.querySelector('footer')?.append(network)}
+if(network){
+  network.classList.add('footer-status');
+  network.setAttribute('role','button');
+  network.setAttribute('tabindex','0');
+  network.setAttribute('aria-haspopup','dialog');
+  network.setAttribute('aria-label','Explain connection status');
+  document.querySelector('footer')?.append(network);
+  const networkInfo=document.createElement('dialog');
+  networkInfo.className='network-info';
+  networkInfo.innerHTML='<button type="button" class="close" aria-label="Close">×</button><h2>Connection status</h2><p><strong>Online</strong> or <strong>Offline</strong> reflects whether this device has an internet connection.</p><p>A reliable connection is needed to load and save photos, unless you previously synced a complete offline copy to this device.</p>';
+  document.body.append(networkInfo);
+  const openNetworkInfo=()=>networkInfo.showModal();
+  network.addEventListener('click',openNetworkInfo);
+  network.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openNetworkInfo()}});
+  networkInfo.querySelector('.close')?.addEventListener('click',()=>networkInfo.close());
+  networkInfo.addEventListener('click',e=>{if(e.target===networkInfo)networkInfo.close()});
+}
 function net(){if(!network)return;network.textContent=navigator.onLine?'Online':'Offline';network.classList.toggle('offline',!navigator.onLine)} addEventListener('online',net);addEventListener('offline',net);net();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('index.php?action=service-worker',{scope:'./'});
 const DB='skin-wound-viewer',CACHE='swcv-patient-sample-patient';
