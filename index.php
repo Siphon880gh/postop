@@ -226,7 +226,7 @@ function patient_picker(array $d):string{
 }
 function view_switch(array $l,string $date,string $view):string{
     $day=app_url($l['id'],$date,'day');$gal=app_url($l['id'],$date,'gallery');
-    return '<nav class="view-switch" aria-label="Library views"><a href="'.$day.'"'.($view==='day'?' aria-current="page"':'').'>Day record</a><a href="'.$gal.'"'.($view==='gallery'?' aria-current="page"':'').'>Photo gallery</a></nav>';
+    return '<nav class="view-switch" aria-label="Library views"><a href="'.$day.'"'.($view==='day'?' aria-current="page"':'').'>Day record</a><a data-gallery-tab href="'.$gal.'"'.($view==='gallery'?' aria-current="page"':'').'>Photo gallery</a></nav>';
 }
 function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf):string{
     $n=count($photos);if($n===0)return '';
@@ -295,7 +295,7 @@ function day_view(array $selected,string $date,string $csrf):string{
 }
 function gallery_view(array $selected,string $date,string $csrf):string{
     $days=photo_days($selected);
-    $o='<div class="day-head"><div><p class="eyebrow">Photo gallery</p><h2>Days and wounds with pictures</h2><p class="muted">Only dates and wounds that have photos are listed.</p></div></div>';
+    $o='<div id="photo-gallery-card" class="day-head" tabindex="-1"><div><p class="eyebrow">Photo gallery</p><h2>Days and wounds with pictures</h2><p class="muted">Only dates and wounds that have photos are listed.</p></div></div>';
     if(!$days)return $o.'<div class="empty"><h2>No photos recorded</h2><p>Add photos from the day record view and they will appear here.</p></div>';
     if(photo_count_on_date($selected,$date)===0)$o.='<div class="empty compact"><strong>'.h(date('l, F j',strtotime($date))).' has no photos</strong><span>Showing only days that do.</span></div>';
     $openKey=isset($days[$date])?$date:array_key_first($days);
@@ -360,7 +360,7 @@ function css():string{return <<<'CSS'
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 .edit-mode{display:inline-flex;align-items:center;gap:.42rem;background:#fff;color:var(--brand);border:1px solid var(--line);padding:.38rem .65rem}.edit-mode svg{width:1rem;height:1rem;fill:currentColor}.edit-mode small{font-size:.7rem;font-weight:850;color:var(--muted)}.edit-mode[aria-pressed="true"]{background:#e5f3ef;border-color:#74aea3;color:#15574f}.edit-mode[aria-pressed="true"] small{color:inherit}.edit-only{display:none!important}body.is-editing .edit-only{display:inline-flex!important}.photo-manage.edit-only{display:none!important}body.is-editing .photo-manage.edit-only{display:block!important}.photo-view-actions{display:flex;gap:6px;align-items:center;flex:none}.photo-label-edit{width:32px;min-width:32px;min-height:32px;padding:.38rem}.photo-label-edit svg{width:15px;height:15px;display:block}
 .photo-accordion .chev{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:#edf5f2;font-size:1.65rem;line-height:1;color:var(--brand)}.photo-accordion .chev::before{content:'›'}.photo-accordion details[open]>summary .chev::before{content:'⌄'}.next-photo-control{display:flex;align-items:center;gap:6px}.angle-advance{min-width:48px;min-height:48px;padding:0;font-size:2rem;line-height:1}.next-options{position:relative}.next-options summary{display:grid;place-items:center;min-width:38px;min-height:38px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:0}.next-options summary::-webkit-details-marker{display:none}.next-options summary::before{content:'⌄';font-size:1.3rem;line-height:1}.next-options summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.next-options>div{position:absolute;right:0;z-index:4;width:max-content;min-width:190px;margin-top:6px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}.next-options button{display:flex;width:100%;justify-content:space-between;gap:12px;background:transparent;color:var(--ink);padding:.55rem .65rem;text-align:left}.next-options button:hover{background:#edf5f2;filter:none}.next-options button[aria-pressed="true"]{color:var(--brand);font-weight:850}.next-options small{color:var(--muted);font-size:.68rem}.next-options button[aria-pressed="true"] small{color:inherit}
-.patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}
+.patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}#photo-gallery-card{scroll-margin-top:88px}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
@@ -373,6 +373,13 @@ if(editMode){
     document.body.classList.toggle('is-editing',enabled);
   });
 }
+document.querySelector('[data-gallery-tab][aria-current="page"]')?.addEventListener('click',event=>{
+  event.preventDefault();
+  document.getElementById('photo-gallery-card')?.scrollIntoView({
+    block:'start',
+    behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'
+  });
+});
 document.querySelectorAll('.weight-control').forEach(el=>{
   const kg=parseFloat(el.dataset.kg), lb=parseFloat(el.dataset.lb);
   const value=el.querySelector('.weight-value');
