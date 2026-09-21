@@ -247,6 +247,7 @@ function app_footer():string{return '<footer><span>Clinical viewer for post op w
 function sync_count(array $d):int{$n=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)$n+=count($u['photos']);return $n;}
 function app_url(string $library,string $date,string $view='day'):string{return '?patient='.PATIENT_ID.'&library='.rawurlencode($library).'&date='.rawurlencode($date).'&view='.rawurlencode($view);}
 function photo_count_on_date(array $l,string $ds):int{$n=0;foreach($l['wounds'] as $w)$n+=count($w['updates'][$ds]['photos']??[]);return $n;}
+function photo_dates_for_wound(array $w):array{$dates=[];foreach(($w['updates']??[]) as $date=>$update)if(!empty($update['photos']))$dates[]=$date;sort($dates);return $dates;}
 function latest_relevant_date(array $l):string{
     $today=gmdate('Y-m-d');$start=$l['start_date'];$latestPhoto=null;$latestUpdate=null;
     foreach($l['wounds'] as $w){foreach(($w['updates']??[]) as $ds=>$u){
@@ -316,18 +317,21 @@ function view_switch(array $l,string $date,string $view):string{
 function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf):string{
     $n=count($photos);if($n===0)return '';
     $uid='angles-'.h($w['id']).'-'.h($date);
-    $o='<div class="angle-set" data-mode="cycle" data-count="'.$n.'" data-date="'.h($date).'">';
+    $photoDates=implode(',',photo_dates_for_wound($w));
+    $canBrowseDates=count(photo_dates_for_wound($w))>1;
+    $o='<div class="angle-set" data-mode="cycle" data-count="'.$n.'" data-date="'.h($date).'" data-photo-dates="'.h($photoDates).'" data-wound-name="'.h($w['name']).'" data-wound-description="'.h($w['location']).'">';
     $o.='<div class="angle-stage">';
-    if($n>1)$o.='<button type="button" class="ghost angle-nav prev" aria-label="Previous shot of '.h($w['name']).'">Previous</button>';
+    $o.=$n>1?'<button type="button" class="ghost angle-nav prev" aria-label="Previous shot of '.h($w['name']).'">Previous shot</button>':'<span class="angle-nav-spacer" aria-hidden="true"></span>';
     $o.='<div class="angle-frames" id="'.$uid.'">';
     foreach($photos as $i=>$p){
         $heading=photo_heading($p,$i);
         $o.='<figure'.($i===0?' class="is-current"':' hidden').' data-index="'.$i.'"><img src="index.php?action=media&id='.h($p['id']).'&v='.$l['revision'].'" alt="'.h($heading).' of '.h($w['name']).'"><figcaption><span class="photo-label"><strong>'.h($heading).'</strong>'.($p['caption']!==''?'<small>'.h($p['caption']).'</small>':'').'</span><span class="photo-view-actions"><button type="button" class="ghost small photo-label-edit edit-only" onclick="showModal(\'photo-'.h($p['id']).'\')" aria-label="Edit name or description for '.h($heading).'">'.pencil_icon().'<span class="sr-only">Edit '.h($heading).'</span></button><button type="button" class="ghost small photo-expand" data-index="'.$i.'" aria-label="Expand '.h($heading).' of '.h($w['name']).'">Expand</button></span></figcaption></figure>';
     }
     $o.='</div>';
-    $o.='<span class="next-photo-control"><button type="button" class="ghost angle-advance" aria-label="Next available photo" title="Next available photo">›</button><details class="next-options"><summary aria-label="Choose what the right chevron advances">Options</summary><div role="group" aria-label="Right chevron action"><button type="button" data-next-behavior="photo" aria-pressed="true">Next available photo <small>Default</small></button><button type="button" data-next-behavior="date" aria-pressed="false">Next date</button></div></details></span>';
+    $o.=$n>1?'<button type="button" class="ghost angle-nav next" aria-label="Next shot of '.h($w['name']).'">Next shot</button>':'<span class="angle-nav-spacer" aria-hidden="true"></span>';
     $o.='</div>';
     $o.='<div class="angle-toolbar"><p class="angle-status" aria-live="polite">'.($n>1?'Shot 1 of '.$n:'Shot 1').'</p>';
+    if($canBrowseDates)$o.='<div class="photo-date-navigation" role="group" aria-label="Photo dates for '.h($w['name']).'"><span>Dates with photos</span><div><button type="button" class="ghost small angle-date-prev">Previous date</button><button type="button" class="ghost small angle-date-next">Next date</button></div></div>';
     if($n>1){
         $o.='<button type="button" class="ghost small angle-expand">Show all shots</button>';
         $o.='<button type="button" class="ghost small angle-collapse" hidden>Cycle shots</button>';
@@ -408,7 +412,7 @@ function account_modal(array $account,string $csrf,string $returnTo):string{
         .dialog_start('account-information','Account information')
         .'<form method="post"><input type="hidden" name="op" value="account_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="return_to" value="'.h($returnTo).'"><label>Your name<input name="display_name" value="'.$name.'" autocomplete="name" maxlength="80" required></label><p class="muted tiny">This name appears in the top-right account control.</p><fieldset><legend>Change password</legend><p class="muted tiny">Leave all password fields blank to keep your current password.</p><label>Current password<input name="current_password" type="password" autocomplete="current-password"></label><label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="8"></label><label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8"></label></fieldset><button type="submit">Save account</button></form></dialog>';
 }
-function photo_lightbox():string{return '<dialog id="photo-lightbox" class="photo-lightbox" aria-labelledby="lightbox-title"><button type="button" class="close lightbox-close" aria-label="Close expanded photo">×</button><h2 id="lightbox-title">Expanded photo</h2><div class="lightbox-stage"><button type="button" class="ghost lightbox-prev">Previous</button><figure><img alt=""><figcaption><strong></strong><small></small></figcaption></figure><button type="button" class="ghost lightbox-next">Next</button></div><p class="lightbox-status" aria-live="polite"></p></dialog>';}
+function photo_lightbox():string{return '<dialog id="photo-lightbox" class="photo-lightbox" aria-labelledby="lightbox-title"><button type="button" class="close lightbox-close" aria-label="Close expanded photo">×</button><header class="lightbox-context"><p id="lightbox-date" class="eyebrow"></p><h2 id="lightbox-title">Photo viewer</h2><p id="lightbox-wound"></p><div class="photo-date-navigation lightbox-date-navigation" hidden><span>Dates with photos</span><div><button type="button" class="ghost small lightbox-date-prev">Previous date</button><button type="button" class="ghost small lightbox-date-next">Next date</button></div></div></header><div class="lightbox-stage"><button type="button" class="ghost lightbox-prev">Previous shot</button><figure><img alt=""><figcaption><strong></strong><small></small></figcaption></figure><button type="button" class="ghost lightbox-next">Next shot</button></div><p class="lightbox-status" aria-live="polite"></p></dialog>';}
 function format_note_time(string $iso):string{
     try{$dt=new DateTimeImmutable($iso);return $dt->setTimezone(new DateTimeZone('UTC'))->format('M j, Y · H:i').' UTC';}
     catch(Throwable $e){return $iso;}
@@ -455,6 +459,8 @@ function css():string{return <<<'CSS'
 footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}
 footer .footer-status{display:inline-flex;align-items:center;margin-top:8px}
 .account-trigger{min-height:0;padding:.25rem 0;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:.86rem;font-weight:700;box-shadow:none}.account-trigger:hover{background:transparent;color:var(--ink);filter:none;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.angle-nav-spacer{display:block;min-width:44px}.angle-nav{font-weight:850}.photo-date-navigation{display:flex;align-items:center;gap:8px;margin-left:auto;padding:5px 6px 5px 10px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted)}.photo-date-navigation>span{font-size:.68rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.photo-date-navigation>div{display:flex;gap:5px}.photo-date-navigation button{min-height:32px;padding:.34rem .58rem;font-size:.75rem}.lightbox-context{margin:4px 48px 12px 0}.photo-lightbox .lightbox-context h2{margin:.12rem 0;color:#e8f0ee}.photo-lightbox #lightbox-date{color:#b7c9c5}.photo-lightbox #lightbox-wound{margin:0;color:#b7c9c5;font-size:.86rem}.photo-lightbox .lightbox-date-navigation{width:fit-content;margin:10px 0 0;border-color:#314244;background:#182426;color:#b7c9c5}.photo-lightbox .lightbox-date-navigation button{background:#223336;color:#e8f0ee;border-color:#43585a}.lightbox-stage{height:calc(100vh - 220px)}.photo-lightbox img{max-height:calc(100vh - 270px)}
+@media(max-width:700px){.angle-nav{font-size:.78rem}.photo-date-navigation{width:100%;margin-left:0;justify-content:space-between}.lightbox-context{margin-right:40px}.lightbox-stage{height:calc(100vh - 250px)}.photo-lightbox img{max-height:calc(100vh - 300px)}}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
@@ -551,15 +557,9 @@ document.querySelectorAll('.angle-set').forEach(set=>{
   }
   function go(next){if(!n)return;i=(next+n)%n;paint()}
   set.querySelector('.angle-nav.prev')?.addEventListener('click',()=>go(i-1));
-  set.querySelector('.angle-advance')?.addEventListener('click',()=>{
-    if(rightChevronBehavior==='date'){
-      const url=nextDateUrl(set.dataset.date||'');
-      if(url)location.assign(url);
-      else if(status)status.textContent='No later date in this timeline';
-      return;
-    }
-    advancePhoto(set);
-  });
+  set.querySelector('.angle-nav.next')?.addEventListener('click',()=>go(i+1));
+  set.querySelector('.angle-date-prev')?.addEventListener('click',()=>visitPhotoDate(set,-1));
+  set.querySelector('.angle-date-next')?.addEventListener('click',()=>visitPhotoDate(set,1));
   tabs.forEach(tab=>tab.addEventListener('click',()=>go(Number(tab.dataset.index))));
   set.querySelector('.angle-expand')?.addEventListener('click',()=>{set.dataset.mode='column';paint()});
   set.querySelector('.angle-collapse')?.addEventListener('click',()=>{set.dataset.mode='cycle';paint()});
@@ -569,53 +569,41 @@ document.querySelectorAll('.angle-set').forEach(set=>{
   set._figures=figures;set._go=go;set._index=()=>i;set._setIndex=idx=>{i=idx;paint()};
   paint();
 });
-let rightChevronBehavior='photo';
-function nextDateUrl(date){
-  const chip=[...document.querySelectorAll('.date-chip')].find(x=>{
-    const d=new URL(x.href,location.href).searchParams.get('date');
-    return d&&d>date;
-  });
-  return chip?.href||'';
+function photoDatesFor(set){return (set?.dataset.photoDates||'').split(',').filter(Boolean)}
+function visitPhotoDate(set,delta){
+  const dates=photoDatesFor(set);if(dates.length<2)return;
+  const current=Math.max(0,dates.indexOf(set.dataset.date||''));
+  const target=dates[(current+delta+dates.length)%dates.length];
+  const url=new URL(location.href);url.searchParams.set('date',target);url.hash='';location.assign(url.toString());
 }
-function advancePhoto(currentSet){
-  const photos=[...document.querySelectorAll('.angle-set')].flatMap(set=>(set._figures||[]).map((_,index)=>({set,index})));
-  if(photos.length<2)return;
-  const current=photos.findIndex(photo=>photo.set===currentSet&&photo.index===currentSet._index());
-  const next=photos[(Math.max(current,0)+1)%photos.length];
-  next.set._setIndex(next.index);
-  if(next.set!==currentSet)next.set.scrollIntoView({block:'center',behavior:'smooth'});
-}
-function setRightChevronBehavior(behavior){
-  rightChevronBehavior=behavior==='date'?'date':'photo';
-  document.querySelectorAll('.angle-advance').forEach(button=>{
-    const label=rightChevronBehavior==='date'?'Next date':'Next available photo';
-    button.setAttribute('aria-label',label);button.title=label;
-  });
-  document.querySelectorAll('[data-next-behavior]').forEach(button=>{
-    const selected=button.dataset.nextBehavior===rightChevronBehavior;
-    button.setAttribute('aria-pressed',String(selected));
-    if(selected)button.closest('details')?.removeAttribute('open');
-  });
-}
-document.querySelectorAll('[data-next-behavior]').forEach(button=>button.addEventListener('click',()=>setRightChevronBehavior(button.dataset.nextBehavior)));
 const lightbox=document.getElementById('photo-lightbox');
 let lbSet=null,lbFigures=[],lbIndex=0;
+function lightboxDateLabel(value){
+  const date=new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(date.valueOf())?value:new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'}).format(date);
+}
 function lightboxPaint(){
   if(!lightbox||!lbFigures[lbIndex])return;
   const fig=lbFigures[lbIndex];
   const srcImg=fig.querySelector('img');
-  const title=fig.querySelector('strong')?.textContent||'Photo';
+  const title=fig.querySelector('strong')?.textContent||'Shot';
   const cap=fig.querySelector('small')?.textContent||'';
+  const woundName=lbSet?.dataset.woundName||'Wound photo';
+  const woundDescription=lbSet?.dataset.woundDescription||'';
+  const dates=photoDatesFor(lbSet);
   const img=lightbox.querySelector('img');
   img.src=srcImg.currentSrc||srcImg.src;
   img.alt=srcImg.alt;
-  lightbox.querySelector('#lightbox-title').textContent=title;
+  lightbox.querySelector('#lightbox-title').textContent=woundName;
+  lightbox.querySelector('#lightbox-date').textContent=lightboxDateLabel(lbSet?.dataset.date||'');
+  lightbox.querySelector('#lightbox-wound').textContent=woundDescription||'Wound photo';
   lightbox.querySelector('figcaption strong').textContent=title;
   lightbox.querySelector('figcaption small').textContent=cap;
-  lightbox.querySelector('.lightbox-status').textContent=lbFigures.length>1?`Shot ${lbIndex+1} of ${lbFigures.length}`:'Shot 1';
+  lightbox.querySelector('.lightbox-status').textContent=lbFigures.length>1?`Shot ${lbIndex+1} of ${lbFigures.length} · Previous and next cycle shots.`:'Shot 1';
   const multi=lbFigures.length>1;
   lightbox.querySelector('.lightbox-prev').hidden=!multi;
   lightbox.querySelector('.lightbox-next').hidden=!multi;
+  lightbox.querySelector('.lightbox-date-navigation').hidden=dates.length<2;
 }
 function openLightbox(set,index){
   lbSet=set;
@@ -636,6 +624,8 @@ if(lightbox){
   lightbox.querySelector('.lightbox-close')?.addEventListener('click',()=>lightbox.close());
   lightbox.querySelector('.lightbox-prev')?.addEventListener('click',()=>lightboxGo(-1));
   lightbox.querySelector('.lightbox-next')?.addEventListener('click',()=>lightboxGo(1));
+  lightbox.querySelector('.lightbox-date-prev')?.addEventListener('click',()=>visitPhotoDate(lbSet,-1));
+  lightbox.querySelector('.lightbox-date-next')?.addEventListener('click',()=>visitPhotoDate(lbSet,1));
   lightbox.addEventListener('click',e=>{if(e.target===lightbox)lightbox.close()});
   lightbox.addEventListener('keydown',e=>{
     if(!lightbox.open||lbFigures.length<2)return;
