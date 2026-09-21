@@ -1,0 +1,65 @@
+{
+  "current_epic_id": "E0",
+  "status": "in_progress",
+  "last_updated_iso": "2026-09-21T05:53:58Z",
+  "decisions": {
+    "platform": "Responsive PHP web PWA for desktop, tablet, and mobile",
+    "mvp_scope": "Demo authentication and one seeded patient; progress libraries and timeline; longitudinal wounds and daily updates; scoped notes; secure ordered angle-photo gallery",
+    "main_constraints": "One self-contained index.php; file-only canonical JSON and media; no dependencies or remote services; explicit opt-in full offline copy; IndexedDB/Cache Storage only for PWA replica and outbox; conflict-aware replay"
+  },
+  "identified_epics": [
+    {
+      "id": "E1",
+      "name": "Trusted Access & Patient Entry",
+      "priority": "MVP"
+    },
+    {
+      "id": "E2",
+      "name": "Progress Libraries & Timeline Navigation",
+      "priority": "MVP"
+    },
+    {
+      "id": "E3",
+      "name": "Longitudinal Wounds & Daily Recording",
+      "priority": "MVP"
+    },
+    {
+      "id": "E4",
+      "name": "Scoped Notes & Context",
+      "priority": "MVP"
+    },
+    {
+      "id": "E5",
+      "name": "Secure Angle-Photo Gallery",
+      "priority": "MVP"
+    },
+    {
+      "id": "E6",
+      "name": "User-Controlled Offline Continuity",
+      "priority": "Mandatory"
+    },
+    {
+      "id": "E7",
+      "name": "Record Trust, Safety & Inclusive Use",
+      "priority": "Mandatory"
+    }
+  ],
+  "completed": [
+    "E0.discovery",
+    "E0.requirements_grounding",
+    "E0.user_flows",
+    "E0.persistence_plan",
+    "E0.ui_states",
+    "E0.epic_map"
+  ],
+  "pending_confirmation": [
+    "epic_map",
+    "working_name",
+    "user_and_icp_assumptions",
+    "supported_browser_scope",
+    "15_mb_upload_default",
+    "inactive_wound_history_behavior",
+    "revision_conflict_policy"
+  ],
+  "next_action": "Await explicit user confirmation before milestone decomposition or implementation"
+}
