@@ -8,6 +8,7 @@ const MAX_UPLOAD = 15728640;
 $root = getenv('POSTOP_STORAGE_DIR') ?: __DIR__ . '/storage';
 $patientDir = $root . '/patients/' . PATIENT_ID;
 $dataFile = $patientDir . '/record.json';
+$accountFile = $root . '/account.json';
 
 function fail(string $message, int $status = 400): void { http_response_code($status); header('Content-Type: text/plain; charset=utf-8'); exit($message); }
 function safe_id(string $value): bool { return (bool)preg_match('/^[a-z0-9][a-z0-9-]{0,63}$/', $value); }
@@ -49,6 +50,31 @@ function seed(string $dataFile, string $patientDir): void {
     ]]; atomic_write($dataFile,$data);
 }
 seed($dataFile,$patientDir);
+function seed_account(string $accountFile): void {
+    if (is_file($accountFile)) return;
+    atomic_write($accountFile,[
+        'display_name'=>'Weng',
+        'username'=>'admin',
+        'password_hash'=>password_hash('password',PASSWORD_DEFAULT),
+    ]);
+}
+function load_account(): array {
+    global $accountFile;
+    $raw=@file_get_contents($accountFile);
+    $account=$raw===false?null:json_decode($raw,true);
+    if(!is_array($account)||!is_string($account['password_hash']??null)||$account['password_hash']==='')fail('The account configuration is unavailable or invalid.',500);
+    $display=trim((string)($account['display_name']??''));
+    $username=trim((string)($account['username']??''));
+    if($display===''||$username==='')fail('The account configuration is unavailable or invalid.',500);
+    return ['display_name'=>$display,'username'=>$username,'password_hash'=>$account['password_hash']];
+}
+function save_account(array $account): void { global $accountFile; atomic_write($accountFile,$account); }
+function current_page_url(): string {
+    $query=$_GET;
+    unset($query['action']);
+    return 'index.php'.($query?'?'.http_build_query($query,'','&',PHP_QUERY_RFC3986):'');
+}
+seed_account($accountFile);
 function placeholders_dir(): string { return __DIR__ . '/placeholders'; }
 function avatar_svg(string $serial, string $gender): string {
     $female=strtolower($gender)==='female';
@@ -101,13 +127,33 @@ if($action==='service-worker'){header('Content-Type: application/javascript');he
 const SHELL='swcv-shell-v1'; self.addEventListener('install',e=>e.waitUntil(caches.open(SHELL).then(c=>c.add('./index.php')).then(()=>self.skipWaiting()))); self.addEventListener('activate',e=>e.waitUntil(self.clients.claim())); self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=='GET')return;if(u.searchParams.get('action')==='media'){e.respondWith(caches.match(e.request).then(x=>x||fetch(e.request)));return}if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).catch(()=>caches.match(e.request).then(x=>x||caches.match('./index.php'))))}});
 JS;exit;}
 
+$account=load_account();
 $authed=($_SESSION['auth']??false)===true;
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $op=$_POST['op']??'';
-    if($op==='login'){if(hash_equals('admin',(string)($_POST['username']??''))&&hash_equals('password',(string)($_POST['password']??''))){session_regenerate_id(true);$_SESSION=['auth'=>true,'csrf'=>bin2hex(random_bytes(24)),'flash'=>'Welcome back.'];header('Location: index.php');exit;}$_SESSION['login_error']='Incorrect username or password.';header('Location: index.php');exit;}
+    if($op==='login'){if(hash_equals($account['username'],trim((string)($_POST['username']??'')))&&password_verify((string)($_POST['password']??''),$account['password_hash'])){session_regenerate_id(true);$_SESSION=['auth'=>true,'csrf'=>bin2hex(random_bytes(24)),'flash'=>'Welcome back.'];header('Location: index.php');exit;}$_SESSION['login_error']='Incorrect username or password.';header('Location: index.php');exit;}
     if(!$authed) fail('Authentication required.',401);
     if(!hash_equals((string)($_SESSION['csrf']??''),(string)($_POST['csrf']??'')))fail('Invalid CSRF token.',403);
     if($op==='logout'){$_SESSION=[];session_destroy();header('Clear-Site-Data: "cache", "storage"');header('Location: index.php');exit;}
+    if($op==='account_save'){
+        $display=trim((string)($_POST['display_name']??''));
+        if($display===''||strlen($display)>80)fail('Enter a name of 80 characters or fewer.');
+        $current=(string)($_POST['current_password']??'');$new=(string)($_POST['new_password']??'');$confirm=(string)($_POST['confirm_password']??'');
+        $changingPassword=$current!==''||$new!==''||$confirm!=='';
+        if($changingPassword){
+            if($current===''||$new===''||$confirm==='')fail('Complete every password field to change your password.');
+            if(!password_verify($current,$account['password_hash']))fail('Your current password is incorrect.');
+            if(strlen($new)<8)fail('Your new password must contain at least 8 characters.');
+            if(!hash_equals($new,$confirm))fail('Your new password and confirmation do not match.');
+            $account['password_hash']=password_hash($new,PASSWORD_DEFAULT);
+        }
+        $account['display_name']=$display;
+        save_account($account);
+        $_SESSION['flash']='Account information saved.';
+        $return=(string)($_POST['return_to']??'index.php');
+        if(!preg_match('/^index\.php(?:\?[^\r\n]*)?$/',$return))$return='index.php';
+        header('Location: '.$return);exit;
+    }
     $d=load_data(); if(isset($_POST['expected_revision'])&&(int)$_POST['expected_revision']!==(int)$d['revision'])fail('Conflict: the server record changed. Reload the server version or review and retry the pending change.',409); $libId=(string)($_POST['library_id']??''); if($libId!==''&&!safe_id($libId))fail('Invalid library ID.');
     $redirect='index.php?patient='.PATIENT_ID;
     try {
@@ -152,7 +198,7 @@ $csrf=$_SESSION['csrf']??'';$loginError=$_SESSION['login_error']??'';unset($_SES
 if(!$authed): ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · <?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">Clinical recordkeeping demo</p><h1><?=APP_NAME?></h1><p class="muted">Sign in to review longitudinal wound records.</p><?php if($loginError):?><div class="alert" role="alert" id="login-error"><?=h($loginError)?></div><?php endif?><form method="post"<?=$loginError?' aria-describedby="login-error"':''?>><input type="hidden" name="op" value="login"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form><button type="button" class="demo" id="fillDemo" aria-label="Fill demo credentials"><strong>Demo-only credentials</strong><code>admin</code> / <code>password</code></button></section></main><footer>Demo wound-photo recordkeeping app — not for diagnosis or emergency use.</footer><script>document.getElementById('fillDemo').addEventListener('click',()=>{const f=document.querySelector('form');const u=f.querySelector('[name=username]');const p=f.querySelector('[name=password]');u.value='admin';p.value='password';u.focus()});</script></body></html><?php exit;endif;
 $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$view=(($_GET['view']??'')==='gallery')?'gallery':'day';$selectedId=(string)($_GET['library']??($d['libraries'][0]['id']??''));$selected=null;foreach($d['libraries'] as $l)if($l['id']===$selectedId)$selected=$l;if($selected){$date=(string)($_GET['date']??'');if($date===''||$date<$selected['start_date']||$date>gmdate('Y-m-d'))$date=latest_relevant_date($selected);}else{$date=gmdate('Y-m-d');}
 ?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
-<?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1><p class="muted">One non-identifying demonstration record.</p></div></section><?=patient_picker($d)?>
+<?=account_modal($account,$csrf,current_page_url())?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1><p class="muted">One non-identifying demonstration record.</p></div></section><?=patient_picker($d)?>
 <?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button></div><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=PATIENT_ID?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></aside>
 <section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form></div></article>
 <?=view_switch($selected,$date,$view),timeline($selected,$date,$view)?>
@@ -317,6 +363,12 @@ function gallery_view(array $selected,string $date,string $csrf):string{
 function timeline(array $l,string $date,string $view='day'):string{$start=new DateTimeImmutable($l['start_date']);$end=new DateTimeImmutable('today');$cur=new DateTimeImmutable($date);$month=$cur->format('Y-m');$first=maxdate($start,new DateTimeImmutable($month.'-01'));$last=mindate($end,new DateTimeImmutable($month.'-01 last day of this month'));$out='<nav class="timeline" aria-label="Date timeline"><div class="month-nav"><a href="'.app_url($l['id'],$cur->modify('-1 month')->format('Y-m-d'),$view).'">Previous month</a><strong>'.$cur->format('F Y').'</strong><a href="'.app_url($l['id'],$cur->modify('+1 month')->format('Y-m-d'),$view).'">Next month</a><a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div><div class="date-row">';for($x=$first;$x<=$last;$x=$x->modify('+1 day')){$ds=$x->format('Y-m-d');$photos=photo_count_on_date($l,$ds);$nn=count($l['day_notes'][$ds]??[]);$label=$x->format('D j').($photos?', '.photo_word($photos):', no photos').($nn?", $nn notes":'');$current=$ds===$date;$out.='<a aria-label="'.h($label).'"'.($current?' aria-current="date"':'').' class="date-chip '.($photos?'has-photos':'idle').' '.($current?'current':'').'" href="'.app_url($l['id'],$ds,$view).'"><small>'.$x->format('D').'</small><b>'.$x->format('j').'</b>'.($photos?'<span class="photo-mark" aria-hidden="true">'.$photos.'</span>':'').($nn?'<span class="note-badge date-note"><span aria-hidden="true">Notes</span><b aria-hidden="true">'.$nn.'</b><span class="sr-only">'.$nn.' notes</span></span>':'').'</a>';}$out.='</div></nav>';return $out;}
 function maxdate(DateTimeImmutable $a,DateTimeImmutable $b):DateTimeImmutable{return $a>$b?$a:$b;}function mindate(DateTimeImmutable $a,DateTimeImmutable $b):DateTimeImmutable{return $a<$b?$a:$b;}
 function dialog_start(string $id,string $title):string{return '<dialog id="'.$id.'" aria-labelledby="'.$id.'-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="'.$id.'-title">'.h($title).'</h2>';}
+function account_modal(array $account,string $csrf,string $returnTo):string{
+    $name=h($account['display_name']);
+    return '<button type="button" id="account-trigger" class="account-trigger ghost" onclick="showModal(\'account-information\')" aria-label="Open account information for '.$name.'">'.$name.'</button>'
+        .dialog_start('account-information','Account information')
+        .'<form method="post"><input type="hidden" name="op" value="account_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="return_to" value="'.h($returnTo).'"><label>Your name<input name="display_name" value="'.$name.'" autocomplete="name" maxlength="80" required></label><p class="muted tiny">This name appears in the top-right account control.</p><fieldset><legend>Change password</legend><p class="muted tiny">Leave all password fields blank to keep your current password.</p><label>Current password<input name="current_password" type="password" autocomplete="current-password"></label><label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="8"></label><label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8"></label></fieldset><button type="submit">Save account</button></form></dialog>';
+}
 function photo_lightbox():string{return '<dialog id="photo-lightbox" class="photo-lightbox" aria-labelledby="lightbox-title"><button type="button" class="close lightbox-close" aria-label="Close expanded photo">×</button><h2 id="lightbox-title">Expanded photo</h2><div class="lightbox-stage"><button type="button" class="ghost lightbox-prev">Previous</button><figure><img alt=""><figcaption><strong></strong><small></small></figcaption></figure><button type="button" class="ghost lightbox-next">Next</button></div><p class="lightbox-status" aria-live="polite"></p></dialog>';}
 function format_note_time(string $iso):string{
     try{$dt=new DateTimeImmutable($iso);return $dt->setTimezone(new DateTimeZone('UTC'))->format('M j, Y · H:i').' UTC';}
@@ -364,6 +416,8 @@ function css():string{return <<<'CSS'
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
+const accountTrigger=document.getElementById('account-trigger');
+if(accountTrigger)document.querySelector('.top-actions')?.prepend(accountTrigger);
 const editMode=document.getElementById('editMode');
 if(editMode){
   editMode.addEventListener('click',()=>{
