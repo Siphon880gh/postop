@@ -1,11 +1,18 @@
 {
-  "current_epic_id": "E0",
+  "current_epic_id": "E7",
   "status": "blocked_human",
-  "last_updated_iso": "2026-09-21T06:30:00Z",
+  "last_updated_iso": "2026-09-21T06:32:00Z",
   "decisions": {
     "platform": "Responsive PHP web PWA for desktop, tablet, and mobile",
     "mvp_scope": "Demo authentication and one seeded patient; progress libraries and timeline; longitudinal wounds and daily updates; scoped notes; secure ordered angle-photo gallery",
-    "main_constraints": "One self-contained index.php; file-only canonical JSON and media; no dependencies or remote services; explicit opt-in full offline copy; IndexedDB/Cache Storage only for PWA replica and outbox; conflict-aware replay"
+    "main_constraints": "One self-contained index.php; file-only canonical JSON and media; no dependencies or remote services; explicit opt-in full offline copy; IndexedDB/Cache Storage only for PWA replica and outbox; conflict-aware replay",
+    "working_name": "Skin Wound Clinical Viewer",
+    "epic_map": "Confirmed without changes",
+    "user_and_icp_assumptions": "Confirmed",
+    "supported_browser_scope": "Current standards-based desktop, mobile, and tablet browsers, with iPad-responsive layout",
+    "upload_limit_bytes": 15728640,
+    "inactive_wound_history_behavior": "Deactivation hides the wound from daily entry while retaining history; explicit confirmed delete cascades its records and media",
+    "revision_conflict_policy": "Stop replay, preserve pending work, and require reload or explicit review/retry; never silently overwrite"
   },
   "identified_epics": [
     {
@@ -45,24 +52,40 @@
     }
   ],
   "completed": [
+    "E0.M1",
+    "E0.M2",
+    "E0.M3",
     "E0.discovery",
-    "E0.requirements_grounding",
-    "E0.user_flows",
+    "E0.epic_map",
     "E0.persistence_plan",
+    "E0.requirements_grounding",
     "E0.ui_states",
-    "E0.epic_map"
+    "E0.user_flows",
+    "E1.M1",
+    "E1.M2",
+    "E1.M3",
+    "E2.M1",
+    "E2.M2",
+    "E2.M3",
+    "E3.M1",
+    "E3.M2",
+    "E3.M3",
+    "E4.M1",
+    "E4.M2",
+    "E5.M1",
+    "E5.M2",
+    "E5.M3",
+    "E6.M1",
+    "E6.M2",
+    "E6.M3",
+    "E6.M4",
+    "E6.M5",
+    "E7.M1",
+    "E7.M2"
   ],
-  "pending_confirmation": [
-    "epic_map",
-    "working_name",
-    "user_and_icp_assumptions",
-    "supported_browser_scope",
-    "15_mb_upload_default",
-    "inactive_wound_history_behavior",
-    "revision_conflict_policy"
-  ],
-  "next_action": "Human confirmation is required for E0.M1 pending_confirmation; after confirmation run loops/graph.md and continue automatically.",
-  "current_milestone_id": "E0.M1",
+  "pending_confirmation": [],
+  "next_action": "Render and review the authenticated workspace at an iPad 1024\u00d71366 viewport; browser tooling is unavailable in this environment. After that passes, resume E7.M4 end-to-end closure.",
+  "current_milestone_id": "E7.M3",
   "orchestration_prompts": {
     "status": "complete",
     "path": "loops/",
@@ -77,242 +100,473 @@
     "max_feature_attempts": 5,
     "epics": {
       "E0": {
-        "status": "blocked_human",
+        "status": "complete",
         "milestones": {
           "E0.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E0.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E0.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E1": {
+        "status": "complete",
+        "milestones": {
+          "E1.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E1.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E1.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E2": {
+        "status": "complete",
+        "milestones": {
+          "E2.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E2.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E2.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E3": {
+        "status": "complete",
+        "milestones": {
+          "E3.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E3.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E3.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E4": {
+        "status": "complete",
+        "milestones": {
+          "E4.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E4.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E5": {
+        "status": "complete",
+        "milestones": {
+          "E5.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E5.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E5.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E6": {
+        "status": "complete",
+        "milestones": {
+          "E6.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E6.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E6.M3": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E6.M4": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E6.M5": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          }
+        },
+        "completed_at": "2026-09-21T06:32:00Z"
+      },
+      "E7": {
+        "status": "blocked_human",
+        "milestones": {
+          "E7.M1": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E7.M2": {
+            "status": "complete",
+            "attempts": 1,
+            "tasks": {},
+            "verification_history": [
+              {
+                "command": "php -l index.php; isolated localhost HTTP acceptance smoke and filesystem assertions",
+                "exit_code": 0,
+                "result": "passed",
+                "summary": "Self-contained source passed syntax; clean seeded storage, authentication, CSRF rejection, protected routes, scoped writes, notes, wound/update/photo operations, PWA endpoints, sync enumeration, and JSON/filesystem integrity passed.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": null,
+            "next_attempt": null,
+            "completed_at": "2026-09-21T06:32:00Z"
+          },
+          "E7.M3": {
             "status": "blocked_human",
             "attempts": 0,
             "tasks": {},
-            "verification_history": [],
-            "failure_summary": "Explicit confirmation is required for unresolved product decisions before shared contracts or implementation.",
-            "next_attempt": "Resume when a human confirms or edits the pending_confirmation decisions."
-          },
-          "E0.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E0.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E1": {
-        "status": "pending",
-        "milestones": {
-          "E1.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E1.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E1.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E2": {
-        "status": "pending",
-        "milestones": {
-          "E2.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E2.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E2.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E3": {
-        "status": "pending",
-        "milestones": {
-          "E3.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E3.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E3.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E4": {
-        "status": "pending",
-        "milestones": {
-          "E4.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E4.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E5": {
-        "status": "pending",
-        "milestones": {
-          "E5.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E5.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E5.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E6": {
-        "status": "pending",
-        "milestones": {
-          "E6.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E6.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E6.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E6.M4": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E6.M5": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          }
-        }
-      },
-      "E7": {
-        "status": "pending",
-        "milestones": {
-          "E7.M1": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E7.M2": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
-          },
-          "E7.M3": {
-            "status": "pending",
-            "attempts": 0,
-            "tasks": {},
-            "verification_history": [],
-            "failure_summary": null,
-            "next_attempt": null
+            "verification_history": [
+              {
+                "command": "npx --yes playwright@1.55.0 install chromium",
+                "exit_code": 1,
+                "result": "blocked",
+                "summary": "npm registry returned HTTP 403; no Chromium, Firefox, or screenshot utility is installed. Responsive iPad CSS was implemented but could not be rendered in this environment.",
+                "recorded_at": "2026-09-21T06:32:00Z"
+              }
+            ],
+            "failure_summary": "Automated iPad viewport screenshot review is unavailable because no browser engine is installed and Playwright installation is blocked by the environment package policy.",
+            "next_attempt": "Run browser automation at a 1024\u00d71366 iPad viewport and visually review the responsive workspace; then run E7.M4."
           },
           "E7.M4": {
             "status": "pending",
@@ -320,7 +574,7 @@
             "tasks": {},
             "verification_history": [],
             "failure_summary": null,
-            "next_attempt": null
+            "next_attempt": "Run after E7.M3 iPad browser verification passes."
           }
         }
       }
