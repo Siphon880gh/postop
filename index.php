@@ -230,7 +230,7 @@ function view_switch(array $l,string $date,string $view):string{
 function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf):string{
     $n=count($photos);if($n===0)return '';
     $uid='angles-'.h($w['id']).'-'.h($date);
-    $o='<div class="angle-set" data-mode="cycle" data-count="'.$n.'">';
+    $o='<div class="angle-set" data-mode="cycle" data-count="'.$n.'" data-date="'.h($date).'">';
     $o.='<div class="angle-stage">';
     if($n>1)$o.='<button type="button" class="ghost angle-nav prev" aria-label="Previous shot of '.h($w['name']).'">Previous</button>';
     $o.='<div class="angle-frames" id="'.$uid.'">';
@@ -239,7 +239,7 @@ function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf
         $o.='<figure'.($i===0?' class="is-current"':' hidden').' data-index="'.$i.'"><img src="index.php?action=media&id='.h($p['id']).'&v='.$l['revision'].'" alt="'.h($heading).' of '.h($w['name']).'"><figcaption><span class="photo-label"><strong>'.h($heading).'</strong>'.($p['caption']!==''?'<small>'.h($p['caption']).'</small>':'').'</span><span class="photo-view-actions"><button type="button" class="ghost small photo-label-edit edit-only" onclick="showModal(\'photo-'.h($p['id']).'\')" aria-label="Edit name or description for '.h($heading).'">'.pencil_icon().'<span class="sr-only">Edit '.h($heading).'</span></button><button type="button" class="ghost small photo-expand" data-index="'.$i.'" aria-label="Expand '.h($heading).' of '.h($w['name']).'">Expand</button></span></figcaption></figure>';
     }
     $o.='</div>';
-    if($n>1)$o.='<button type="button" class="ghost angle-nav next" aria-label="Next shot of '.h($w['name']).'">Next</button>';
+    $o.='<span class="next-photo-control"><button type="button" class="ghost angle-advance" aria-label="Next available photo" title="Next available photo">›</button><details class="next-options"><summary aria-label="Choose what the right chevron advances">Options</summary><div role="group" aria-label="Right chevron action"><button type="button" data-next-behavior="photo" aria-pressed="true">Next available photo <small>Default</small></button><button type="button" data-next-behavior="date" aria-pressed="false">Next date</button></div></details></span>';
     $o.='</div>';
     $o.='<div class="angle-toolbar"><p class="angle-status" aria-live="polite">'.($n>1?'Shot 1 of '.$n:'Shot 1').'</p>';
     if($n>1){
@@ -358,6 +358,7 @@ function css():string{return <<<'CSS'
 @media(max-width:980px){.app{padding:20px}.layout{grid-template-columns:240px minmax(0,1fr);gap:18px}.wound-grid{grid-template-columns:1fr}.library-head{display:block}.head-buttons{margin-top:16px;flex-wrap:wrap}.sidebar{top:86px}}@media(max-width:700px){.topbar{height:auto;min-height:68px;padding:10px 14px;flex-wrap:wrap;gap:8px}.wordmark{font-size:.9rem;max-width:calc(100% - 8px)}.status{font-size:.72rem;padding:.3rem .55rem}.app{padding:14px}.layout{display:block}.sidebar{position:static}.library-list{flex-direction:row;overflow-x:auto}.library-item{min-width:230px}.sync-card{margin-bottom:17px}.library-head{padding:17px}.month-nav{grid-template-columns:1fr 1fr 1fr}.month-nav strong{order:-1;grid-column:1/-1}.day-head{align-items:end;flex-wrap:wrap;gap:8px}.wound-card{padding:14px}.manage-list>div{align-items:start;flex-wrap:wrap;gap:8px}.toast{left:14px;right:14px}.top-actions{width:100%;justify-content:flex-end}.login-card{padding:25px}.patient-meta{grid-template-columns:1fr}.view-switch{width:100%;position:static;top:auto}.angle-stage{grid-template-columns:1fr 1fr}.angle-frames{grid-column:1/-1;order:-1}.angle-nav{width:100%}.angle-frames img{height:min(40vh,280px)}.photo-lightbox{padding:12px}.lightbox-stage{grid-template-columns:1fr 1fr;height:calc(100vh - 118px)}.photo-lightbox figure{grid-column:1/-1;order:-1}.lightbox-prev,.lightbox-next{width:100%}}@media(min-width:701px) and (max-width:1180px){.app{padding-left:20px;padding-right:20px}.layout{grid-template-columns:minmax(220px,245px) minmax(0,1fr);gap:18px}.library-head{display:block}.library-head h1{font-size:1.65rem}.head-buttons{margin-top:14px;flex-wrap:wrap}.wound-grid{grid-template-columns:1fr}.month-nav{gap:10px}.date-row{flex-wrap:wrap;overflow:visible}.date-chip{min-width:52px}.library-item small{overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 .edit-mode{display:inline-flex;align-items:center;gap:.42rem;background:#fff;color:var(--brand);border:1px solid var(--line);padding:.38rem .65rem}.edit-mode svg{width:1rem;height:1rem;fill:currentColor}.edit-mode small{font-size:.7rem;font-weight:850;color:var(--muted)}.edit-mode[aria-pressed="true"]{background:#e5f3ef;border-color:#74aea3;color:#15574f}.edit-mode[aria-pressed="true"] small{color:inherit}.edit-only{display:none!important}body.is-editing .edit-only{display:inline-flex!important}.photo-manage.edit-only{display:none!important}body.is-editing .photo-manage.edit-only{display:block!important}.photo-view-actions{display:flex;gap:6px;align-items:center;flex:none}.photo-label-edit{width:32px;min-width:32px;min-height:32px;padding:.38rem}.photo-label-edit svg{width:15px;height:15px;display:block}
+.photo-accordion .chev{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:#edf5f2;font-size:1.65rem;line-height:1;color:var(--brand)}.photo-accordion .chev::before{content:'›'}.photo-accordion details[open]>summary .chev::before{content:'⌄'}.next-photo-control{display:flex;align-items:center;gap:6px}.angle-advance{min-width:48px;min-height:48px;padding:0;font-size:2rem;line-height:1}.next-options{position:relative}.next-options summary{display:grid;place-items:center;min-width:38px;min-height:38px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:0}.next-options summary::-webkit-details-marker{display:none}.next-options summary::before{content:'⌄';font-size:1.3rem;line-height:1}.next-options summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.next-options>div{position:absolute;right:0;z-index:4;width:max-content;min-width:190px;margin-top:6px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}.next-options button{display:flex;width:100%;justify-content:space-between;gap:12px;background:transparent;color:var(--ink);padding:.55rem .65rem;text-align:left}.next-options button:hover{background:#edf5f2;filter:none}.next-options button[aria-pressed="true"]{color:var(--brand);font-weight:850}.next-options small{color:var(--muted);font-size:.68rem}.next-options button[aria-pressed="true"] small{color:inherit}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
@@ -444,16 +445,53 @@ document.querySelectorAll('.angle-set').forEach(set=>{
   }
   function go(next){if(!n)return;i=(next+n)%n;paint()}
   set.querySelector('.angle-nav.prev')?.addEventListener('click',()=>go(i-1));
-  set.querySelector('.angle-nav.next')?.addEventListener('click',()=>go(i+1));
+  set.querySelector('.angle-advance')?.addEventListener('click',()=>{
+    if(rightChevronBehavior==='date'){
+      const url=nextDateUrl(set.dataset.date||'');
+      if(url)location.assign(url);
+      else if(status)status.textContent='No later date in this timeline';
+      return;
+    }
+    advancePhoto(set);
+  });
   tabs.forEach(tab=>tab.addEventListener('click',()=>go(Number(tab.dataset.index))));
   set.querySelector('.angle-expand')?.addEventListener('click',()=>{set.dataset.mode='column';paint()});
   set.querySelector('.angle-collapse')?.addEventListener('click',()=>{set.dataset.mode='cycle';paint()});
   set.querySelectorAll('.photo-expand').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();openLightbox(set,Number(btn.dataset.index))}));
   set.querySelector('.angle-frames')?.addEventListener('click',e=>{if(e.target.closest('img'))openLightbox(set,Number(e.target.closest('figure')?.dataset.index||i))});
   set.addEventListener('keydown',e=>{if(document.getElementById('photo-lightbox')?.open)return;if(mode()!=='cycle'||n<2)return;if(e.key==='ArrowLeft'){e.preventDefault();go(i-1)}if(e.key==='ArrowRight'){e.preventDefault();go(i+1)}});
-  set._go=go;set._index=()=>i;set._setIndex=idx=>{i=idx;paint()};
+  set._figures=figures;set._go=go;set._index=()=>i;set._setIndex=idx=>{i=idx;paint()};
   paint();
 });
+let rightChevronBehavior='photo';
+function nextDateUrl(date){
+  const chip=[...document.querySelectorAll('.date-chip')].find(x=>{
+    const d=new URL(x.href,location.href).searchParams.get('date');
+    return d&&d>date;
+  });
+  return chip?.href||'';
+}
+function advancePhoto(currentSet){
+  const photos=[...document.querySelectorAll('.angle-set')].flatMap(set=>(set._figures||[]).map((_,index)=>({set,index})));
+  if(photos.length<2)return;
+  const current=photos.findIndex(photo=>photo.set===currentSet&&photo.index===currentSet._index());
+  const next=photos[(Math.max(current,0)+1)%photos.length];
+  next.set._setIndex(next.index);
+  if(next.set!==currentSet)next.set.scrollIntoView({block:'center',behavior:'smooth'});
+}
+function setRightChevronBehavior(behavior){
+  rightChevronBehavior=behavior==='date'?'date':'photo';
+  document.querySelectorAll('.angle-advance').forEach(button=>{
+    const label=rightChevronBehavior==='date'?'Next date':'Next available photo';
+    button.setAttribute('aria-label',label);button.title=label;
+  });
+  document.querySelectorAll('[data-next-behavior]').forEach(button=>{
+    const selected=button.dataset.nextBehavior===rightChevronBehavior;
+    button.setAttribute('aria-pressed',String(selected));
+    if(selected)button.closest('details')?.removeAttribute('open');
+  });
+}
+document.querySelectorAll('[data-next-behavior]').forEach(button=>button.addEventListener('click',()=>setRightChevronBehavior(button.dataset.nextBehavior)));
 const lightbox=document.getElementById('photo-lightbox');
 let lbSet=null,lbFigures=[],lbIndex=0;
 function lightboxPaint(){
