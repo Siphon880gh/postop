@@ -40,7 +40,7 @@ function seed(string $dataFile, string $patientDir): void {
     $today = new DateTimeImmutable('today'); $start = $today->modify('-12 days'); $partial = $today->modify('-2 days')->format('Y-m-d'); $complete = $today->modify('-1 day')->format('Y-m-d');
     $serials = ['IMG-7F3C92','IMG-A91D40','IMG-2B81EF']; $photos=[];
     foreach ($serials as $i=>$serial) { $id='photo-'.($i+1); $name=sprintf('%02d-shot-%s.svg',$i+1,$id); $dir="$patientDir/libraries/left-heel/wounds/lateral-incision/$complete"; if (!is_dir($dir)) mkdir($dir,0770,true); file_put_contents("$dir/$name",placeholder($serial)); $photos[]=['id'=>$id,'angle'=>'','caption'=>'Seeded reference image','created_at'=>now(),'sort_order'=>$i+1,'filename'=>$name,'mime'=>'image/svg+xml','bytes'=>filesize("$dir/$name")]; }
-    $data=['patient'=>['id'=>PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','avatar'=>'IMG-AVATAR-FEMALE.svg'],'revision'=>1,'libraries'=>[
+    $data=['patient'=>['id'=>PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'revision'=>1,'libraries'=>[
       ['id'=>'left-heel','name'=>'Left Heel Post-op Recovery','type'=>'Postoperative Wound','custom_type'=>'','start_date'=>$start->format('Y-m-d'),'description'=>'Track recovery milestones and dressing observations.','revision'=>1,'notes'=>[['id'=>'note-lib-1','text'=>'Review progress at each dressing change.','created_at'=>now()]],'day_notes'=>[$partial=>[['id'=>'note-day-1','text'=>'Patient reported improved comfort.','created_at'=>now()]]],'wounds'=>[
         ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]],'updates'=>[$partial=>['note'=>'Dressing changed; no image required.','photos'=>[]],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
         ['id'=>'donor-site','name'=>'Donor site','location'=>'Posterior heel','active'=>true,'notes'=>[],'updates'=>[$complete=>['note'=>'Clean and dry.','photos'=>[]]]]
@@ -83,6 +83,7 @@ function patient_profile(array $d): array {
         'age'=>(int)($p['age']??64),
         'weight_kg'=>(float)($p['weight_kg']??78.2),
         'gender'=>$gender,
+        'diagnosis'=>(string)($p['diagnosis']??'Postoperative left heel wound with posterior heel donor site'),
         'avatar'=>$avatar,
     ];
 }
@@ -210,7 +211,7 @@ function weight_control(float $kg):string{
 }
 function patient_facts(array $p):string{
     $age=(int)$p['age'];
-    return '<dl class="patient-meta"><div><dt>Account number</dt><dd>'.h($p['account_number']).'</dd></div><div><dt>Age</dt><dd>'.$age.' year'.($age===1?'':'s').'</dd></div><div><dt>Gender</dt><dd>'.h($p['gender']).'</dd></div><div><dt>Body weight</dt><dd>'.weight_control((float)$p['weight_kg']).'</dd></div></dl>';
+    return '<dl class="patient-meta"><div class="patient-diagnosis"><dt>Dx</dt><dd>'.h($p['diagnosis']).'</dd></div><div><dt>Account number</dt><dd>'.h($p['account_number']).'</dd></div><div><dt>Age</dt><dd>'.$age.' year'.($age===1?'':'s').'</dd></div><div><dt>Gender</dt><dd>'.h($p['gender']).'</dd></div><div><dt>Body weight</dt><dd>'.weight_control((float)$p['weight_kg']).'</dd></div></dl>';
 }
 function patient_facts_compact(array $p):string{
     $age=(int)$p['age'];
@@ -359,6 +360,7 @@ function css():string{return <<<'CSS'
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 .edit-mode{display:inline-flex;align-items:center;gap:.42rem;background:#fff;color:var(--brand);border:1px solid var(--line);padding:.38rem .65rem}.edit-mode svg{width:1rem;height:1rem;fill:currentColor}.edit-mode small{font-size:.7rem;font-weight:850;color:var(--muted)}.edit-mode[aria-pressed="true"]{background:#e5f3ef;border-color:#74aea3;color:#15574f}.edit-mode[aria-pressed="true"] small{color:inherit}.edit-only{display:none!important}body.is-editing .edit-only{display:inline-flex!important}.photo-manage.edit-only{display:none!important}body.is-editing .photo-manage.edit-only{display:block!important}.photo-view-actions{display:flex;gap:6px;align-items:center;flex:none}.photo-label-edit{width:32px;min-width:32px;min-height:32px;padding:.38rem}.photo-label-edit svg{width:15px;height:15px;display:block}
 .photo-accordion .chev{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:#edf5f2;font-size:1.65rem;line-height:1;color:var(--brand)}.photo-accordion .chev::before{content:'›'}.photo-accordion details[open]>summary .chev::before{content:'⌄'}.next-photo-control{display:flex;align-items:center;gap:6px}.angle-advance{min-width:48px;min-height:48px;padding:0;font-size:2rem;line-height:1}.next-options{position:relative}.next-options summary{display:grid;place-items:center;min-width:38px;min-height:38px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:0}.next-options summary::-webkit-details-marker{display:none}.next-options summary::before{content:'⌄';font-size:1.3rem;line-height:1}.next-options summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.next-options>div{position:absolute;right:0;z-index:4;width:max-content;min-width:190px;margin-top:6px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}.next-options button{display:flex;width:100%;justify-content:space-between;gap:12px;background:transparent;color:var(--ink);padding:.55rem .65rem;text-align:left}.next-options button:hover{background:#edf5f2;filter:none}.next-options button[aria-pressed="true"]{color:var(--brand);font-weight:850}.next-options small{color:var(--muted);font-size:.68rem}.next-options button[aria-pressed="true"] small{color:inherit}
+.patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
