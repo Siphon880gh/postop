@@ -84,6 +84,13 @@ sync metadata and the pending-change outbox. **Clear device copy** removes the
 browser copy without changing server records. Logout asks the browser to clear
 the local cache and storage.
 
+When the browser supports installation, a quiet **App · Install** control appears
+below the footer. Installing adds the viewer to the device but does not download
+records; use Sync all to this device for that separate, explicit action. In the
+installed app, **App · Uninstall** removes the service worker and all local
+offline copies after confirmation; server records remain unchanged. Some browsers
+also require removing the app icon from their app list or home screen.
+
 Production use requires HTTPS. Service workers are also supported on localhost
 for development. This is a recordkeeping demo for internal testing only, not a
 diagnostic tool, emergency service, certified EHR, or HIPAA-compliant system.

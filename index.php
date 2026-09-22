@@ -556,10 +556,27 @@ function remove_tree(string $path,string $scope): void { $realBase=realpath($sco
 
 session_name('skin_wound_viewer'); session_start(['cookie_httponly'=>true,'cookie_samesite'=>'Strict','use_strict_mode'=>true]);
 $action=$_GET['action']??'';
-if($action==='manifest'){header('Content-Type: application/manifest+json');echo json_encode(['name'=>APP_NAME,'short_name'=>'Wound Viewer','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','background_color'=>'#f4f7f6','theme_color'=>'#164e63','icons'=>[['src'=>'index.php?action=icon&size=192','sizes'=>'192x192','type'=>'image/svg+xml'],['src'=>'index.php?action=icon&size=512','sizes'=>'512x512','type'=>'image/svg+xml']]]);exit;}
-if($action==='icon'){header('Content-Type: image/svg+xml');$s=($_GET['size']??'192')==='512'?512:192;echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
-if($action==='service-worker'){header('Content-Type: application/javascript');header('Service-Worker-Allowed: ./');echo <<<'JS'
-const SHELL='swcv-shell-v1'; self.addEventListener('install',e=>e.waitUntil(caches.open(SHELL).then(c=>c.add('./index.php')).then(()=>self.skipWaiting()))); self.addEventListener('activate',e=>e.waitUntil(self.clients.claim())); self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=='GET')return;if(u.searchParams.get('action')==='media'){e.respondWith(caches.match(e.request).then(x=>x||fetch(e.request)));return}if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).catch(()=>caches.match(e.request).then(x=>x||caches.match('./index.php'))))}});
+if($action==='manifest'){header('Content-Type: application/manifest+json');header('Cache-Control: public, max-age=3600');echo json_encode(['id'=>'./index.php','name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
+if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format']??'')==='png'&&function_exists('imagecreatetruecolor')){header('Content-Type: image/png');$image=imagecreatetruecolor($s,$s);$blue=imagecolorallocate($image,22,78,99);$white=imagecolorallocate($image,255,255,255);imagefilledrectangle($image,0,0,$s,$s,$blue);$stroke=max(10,(int)round($s*.1));$start=(int)round($s*.28);$end=(int)round($s*.72);$middle=(int)round($s*.5);imagefilledrectangle($image,$start,$middle-(int)($stroke/2),$end,$middle+(int)($stroke/2),$white);imagefilledrectangle($image,$middle-(int)($stroke/2),$start,$middle+(int)($stroke/2),$end,$white);imagepng($image);imagedestroy($image);exit;}header('Content-Type: image/svg+xml');echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
+if($action==='service-worker'){header('Content-Type: application/javascript');header('Cache-Control: no-cache, no-store, must-revalidate');header('Service-Worker-Allowed: ./');echo <<<'JS'
+const SHELL='swcv-shell-v2',PATIENT_CACHE='swcv-patient-';
+self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('swcv-shell-')&&key!==SHELL).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+async function offlinePage(request){
+  const exact=await caches.match(request);if(exact)return exact;
+  for(const key of await caches.keys()){
+    if(!key.startsWith(PATIENT_CACHE))continue;
+    const cache=await caches.open(key);
+    const page=(await cache.keys()).find(entry=>{const url=new URL(entry.url);return url.searchParams.has('patient')&&!url.searchParams.has('action')});
+    if(page){const response=await cache.match(page);if(response)return response;}
+  }
+  return new Response('<!doctype html><title>Offline</title><main><h1>Offline</h1><p>No synced record is available on this device.</p></main>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
+}
+self.addEventListener('fetch',event=>{
+  const url=new URL(event.request.url);if(url.origin!==location.origin||event.request.method!=='GET')return;
+  if(url.searchParams.get('action')==='media'){event.respondWith(caches.match(event.request).then(hit=>hit||fetch(event.request)));return;}
+  if(event.request.mode==='navigate')event.respondWith(fetch(event.request).catch(()=>offlinePage(event.request)));
+});
 JS;exit;}
 
 $samplePatientDir=$root.'/patients/'.DEFAULT_PATIENT_ID;$sampleDataFile=$samplePatientDir.'/record.json';
@@ -685,10 +702,11 @@ $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$vi
 <?=view_switch($selected,$date,$view),timeline($selected,$date,$view)?>
 <?=$view==='gallery'?gallery_view($selected,$date,$csrf,$galleryOrder):day_view($selected,$date,$csrf)?>
 <div class="section-title"><h2>Wound list</h2><button type="button" class="ghost" onclick="showModal('wound-new')">Add wound</button></div><div class="manage-list"><?php foreach($selected['wounds'] as $w):?><div><span><strong><?=h($w['name'])?></strong><small><?=h($w['location'])?> · <?=$w['active']?'Active':'Inactive — history retained'?></small></span><span class="row"><button type="button" class="ghost small" onclick="showModal('wound-<?=h($w['id'])?>')">Edit <?=h($w['name'])?></button><form method="post" onsubmit="return confirm('Delete this wound, its history, and photos?')"><?=hidden($csrf,$selectedId,$w['id'])?><input type="hidden" name="op" value="wound_delete"><button class="danger ghost small" type="submit">Delete <?=h($w['name'])?></button></form></span></div><?php endforeach?></div>
-<?=modals($selected,$csrf,$date)?><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><script><?=js()?></script></body></html>
+<?=modals($selected,$csrf,$date)?><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><?=pwa_controls()?><script><?=js()?></script></body></html>
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
 function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small></footer>';}
+function pwa_controls():string{return '<section id="pwa-actions" class="pwa-actions" aria-label="App installation" hidden><span class="pwa-actions-label">App</span><button type="button" id="pwa-install" class="pwa-action" hidden>Install</button><button type="button" id="pwa-uninstall" class="pwa-action" hidden>Uninstall</button><span id="pwa-status" class="sr-only" role="status" aria-live="polite"></span></section><dialog id="pwa-install-help" class="pwa-dialog" aria-labelledby="pwa-install-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-install-help-title">Install this app</h2><p>Use your browser\'s <strong>Install app</strong> or <strong>Add to Home Screen</strong> command to add this viewer to this device.</p><p class="muted tiny">Install does not create an offline copy. Use Sync all to this device for that separate, private action.</p></dialog><dialog id="pwa-uninstall-confirm" class="pwa-dialog" aria-labelledby="pwa-uninstall-confirm-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-uninstall-confirm-title">Uninstall this app?</h2><p>This removes the app worker and all local offline copies, including pending changes, from this browser. Server records are not changed.</p><p class="muted tiny">Your browser may also require you to remove the app icon from its app list or home screen.</p><div class="row"><button type="button" id="pwa-uninstall-confirm-button" class="danger">Uninstall</button><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Cancel</button></div></dialog>';}
 function first_run_page(string $setupCsrf):void{?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Set up · <?=APP_NAME?></title><style><?=css()?></style></head><body><main class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">First run</p><h1>Start with a sample patient pack</h1><p class="muted">No records or browser storage have been created yet. Create a local sample pack to explore the viewer.</p><form method="post"><input type="hidden" name="op" value="create_sample_pack"><input type="hidden" name="setup_csrf" value="<?=h($setupCsrf)?>"><button type="submit">Create sample patient pack</button></form><p class="muted tiny">This creates the local <code>storage/</code> folder and the demo sign-in account on this machine.</p></section></main><?=app_footer()?></body></html><?php exit;}
 function sync_count(array $d):int{$n=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)$n+=count($u['photos']);return $n;}
@@ -1067,6 +1085,7 @@ function css():string{return <<<'CSS'
 footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}
 footer .footer-status{display:inline-flex;align-items:center;margin-top:8px}
 footer .footer-status{cursor:pointer;border:0}footer .footer-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
+.pwa-actions{display:flex;align-items:center;justify-content:center;gap:8px;margin:-14px auto 18px;color:var(--muted);font-size:.72rem}.pwa-actions[hidden]{display:none}.pwa-actions-label{font-weight:800;letter-spacing:.06em;text-transform:uppercase}.pwa-action{min-height:28px;padding:.22rem .5rem;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.pwa-action:hover{background:#e8f1ef;color:var(--brand);filter:none}.pwa-action:focus-visible{outline-offset:1px}.pwa-dialog{width:min(430px,calc(100% - 28px));padding:22px 24px}.pwa-dialog h2{font-size:1.25rem}.pwa-dialog p{margin:.6rem 0 0;color:var(--ink);line-height:1.5}.pwa-dialog .muted{color:var(--muted)}.pwa-dialog .row{margin-top:18px}.pwa-dialog .danger{background:var(--danger);color:#fff}
 .sync-card-frame{position:relative;margin-top:18px}.sync-card-frame .sync-card{margin-top:0}.sync-clear{position:absolute;top:7px;right:7px;z-index:1;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand2);font-size:1.3rem;font-weight:500;line-height:1}.sync-clear:hover{background:#d5e6e9;filter:none}
 .account-trigger{min-height:0;padding:.25rem 0;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:.86rem;font-weight:700;box-shadow:none}.account-trigger:hover{background:transparent;color:var(--ink);filter:none;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
 .top-actions #editMode{display:none}.edit-mode-bar{position:sticky;top:68px;z-index:9;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 22px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 8px 18px rgba(22,50,56,.08)}.edit-mode-bar>span{display:flex;align-items:baseline;gap:8px;min-width:0}.edit-mode-bar strong{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}.edit-mode-bar small{color:var(--muted);font-size:.75rem}.edit-mode-bar #editMode{display:inline-flex;margin-left:auto}
@@ -1441,6 +1460,44 @@ const DB='skin-wound-viewer',CACHE='swcv-patient-'+PATIENT_ID;
 function db(){return new Promise((ok,no)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('meta'))d.createObjectStore('meta');if(!d.objectStoreNames.contains('outbox'))d.createObjectStore('outbox',{keyPath:'id'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 async function metaPut(k,v){const d=await db();return new Promise((ok,no)=>{const t=d.transaction('meta','readwrite');t.objectStore('meta').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})}
 async function metaGet(k){const d=await db();return new Promise((ok,no)=>{const r=d.transaction('meta').objectStore('meta').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+async function describeOfflineCopy(){if(!network||navigator.onLine)return;const copy=await metaGet(PATIENT_ID).catch(()=>null);if(copy?.complete)network.textContent='Offline · copy from '+new Date(copy.at).toLocaleString()}
+addEventListener('offline',describeOfflineCopy);describeOfflineCopy();
+const pwaActions=document.getElementById('pwa-actions'),pwaInstall=document.getElementById('pwa-install'),pwaUninstall=document.getElementById('pwa-uninstall'),pwaStatus=document.getElementById('pwa-status'),pwaInstallHelp=document.getElementById('pwa-install-help'),pwaUninstallConfirm=document.getElementById('pwa-uninstall-confirm'),pwaUninstallConfirmButton=document.getElementById('pwa-uninstall-confirm-button');
+let deferredInstallPrompt=null;
+const pwaStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const pwaIos=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+function renderPwaControls(){
+  if(!pwaActions||!pwaInstall||!pwaUninstall)return;
+  const installed=pwaStandalone();
+  const canInstall=!installed&&(Boolean(deferredInstallPrompt)||pwaIos);
+  pwaActions.hidden=!canInstall&&!installed;
+  pwaInstall.hidden=!canInstall;
+  pwaUninstall.hidden=!installed;
+}
+addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;renderPwaControls()});
+addEventListener('appinstalled',()=>{deferredInstallPrompt=null;pwaStatus&&(pwaStatus.textContent='App installed.');renderPwaControls()});
+pwaInstall?.addEventListener('click',async()=>{
+  if(!deferredInstallPrompt){pwaInstallHelp?.showModal();return;}
+  deferredInstallPrompt.prompt();
+  const choice=await deferredInstallPrompt.userChoice;
+  pwaStatus&&(pwaStatus.textContent=choice.outcome==='accepted'?'Install started.':'Install dismissed.');
+  deferredInstallPrompt=null;renderPwaControls();
+});
+pwaUninstall?.addEventListener('click',()=>pwaUninstallConfirm?.showModal());
+pwaUninstallConfirmButton?.addEventListener('click',async()=>{
+  pwaUninstallConfirmButton.disabled=true;
+  try{
+    await Promise.all((await caches.keys()).filter(key=>key.startsWith('swcv-')).map(key=>caches.delete(key)));
+    const database=await db();
+    await new Promise((ok,no)=>{const transaction=database.transaction(['meta','outbox'],'readwrite');transaction.objectStore('meta').clear();transaction.objectStore('outbox').clear();transaction.oncomplete=ok;transaction.onerror=()=>no(transaction.error)});
+    database.close();
+    if('serviceWorker'in navigator){const path=new URL(location.href).pathname;const registrations=await navigator.serviceWorker.getRegistrations();await Promise.all(registrations.filter(registration=>[registration.active,registration.waiting,registration.installing].some(worker=>worker&&new URL(worker.scriptURL).pathname===path&&new URL(worker.scriptURL).searchParams.get('action')==='service-worker')).map(registration=>registration.unregister()))}
+    pwaUninstallConfirm?.close();
+    if(pwaActions)pwaActions.hidden=true;
+    pwaStatus&&(pwaStatus.textContent='App data was removed from this browser.');
+  }catch(error){pwaStatus&&(pwaStatus.textContent='Could not remove app data: '+error.message)}finally{pwaUninstallConfirmButton.disabled=false}
+});
+renderPwaControls();
 const syncBtn=document.getElementById('syncButton'),syncInfo=document.getElementById('syncInfo');
 function clearCopyButton(){
   if(!syncBtn)return null;
@@ -1452,7 +1509,53 @@ function clearCopyButton(){
 }
 async function refreshSync(){if(!syncBtn)return;const clear=clearCopyButton();const m=await metaGet(PATIENT_ID).catch(()=>null);if(m?.complete){syncBtn.querySelector('strong').textContent='Available offline';syncBtn.querySelector('span').innerHTML='Updated '+new Date(m.at).toLocaleString()+' · <b>Update offline copy</b>';syncInfo.textContent='';if(clear)clear.hidden=false}else if(clear)clear.hidden=true}
 async function clearCopy(){if(!confirm('Remove this patient’s offline copy and pending changes from this device? Server records will remain.'))return;await caches.delete(CACHE);const d=await db();await new Promise(ok=>{const t=d.transaction(['meta','outbox'],'readwrite');t.objectStore('meta').delete(PATIENT_ID);t.objectStore('outbox').clear();t.oncomplete=ok});location.reload()}
-async function syncAll(){if(!confirm('Privacy notice: all wound records and full-size photos will be stored in this browser on this device. Browser storage is not encrypted and may be evicted. Do not continue on a shared or public device. Continue?'))return;syncBtn.disabled=true;try{if(navigator.storage?.persist)await navigator.storage.persist();const m=await fetch(`index.php?action=sync-manifest&patient=${encodeURIComponent(PATIENT_ID)}`).then(r=>{if(!r.ok)throw Error('Manifest unavailable');return r.json()});if(navigator.storage?.estimate){const e=await navigator.storage.estimate();if(e.quota-e.usage<m.total_bytes)throw Error('Not enough browser storage for this copy.')}const c=await caches.open(CACHE);for(const req of await c.keys())await c.delete(req);let done=0,bytes=0;syncInfo.textContent=`Syncing 0 / ${m.photo_count} photos…`;const snap=await fetch(m.snapshot_url);if(!snap.ok)throw Error('Snapshot failed');const data=await snap.clone().json();await c.put(m.snapshot_url,snap);for(const l of data.libraries){let day=new Date(l.start_date+'T12:00:00'),today=new Date();while(day<=today){const ds=day.toISOString().slice(0,10),url=`index.php?patient=${encodeURIComponent(PATIENT_ID)}&library=${encodeURIComponent(l.id)}&date=${ds}`;const page=await fetch(url);if(!page.ok)throw Error('Offline page download failed');await c.put(url,page);day.setDate(day.getDate()+1)}}for(const x of m.media){const r=await fetch(x.url);if(!r.ok)throw Error('Photo download failed');await c.put(x.url,r.clone());done++;bytes+=x.bytes;syncInfo.textContent=`Syncing ${done} / ${m.photo_count} photos · ${(bytes/1024).toFixed(1)} KB`;await metaPut(PATIENT_ID,{complete:false,done,total:m.photo_count})}await metaPut(PATIENT_ID,{complete:true,at:Date.now(),revision:m.revision});syncInfo.textContent='Offline copy complete.';await refreshSync()}catch(e){syncInfo.textContent='Sync incomplete: '+e.message;await metaPut(PATIENT_ID,{complete:false,at:Date.now()}).catch(()=>{})}finally{syncBtn.disabled=false}}
+async function syncAll(){
+  if(!confirm('Privacy notice: all wound records and full-size photos will be stored in this browser on this device. Browser storage is not encrypted and may be evicted. Do not continue on a shared or public device. Continue?'))return;
+  syncBtn.disabled=true;
+  try{
+    if(navigator.storage?.persist)await navigator.storage.persist();
+    const manifest=await fetch(`index.php?action=sync-manifest&patient=${encodeURIComponent(PATIENT_ID)}`).then(response=>{if(!response.ok)throw Error('Manifest unavailable');return response.json()});
+    if(navigator.storage?.estimate){const estimate=await navigator.storage.estimate();if(estimate.quota-estimate.usage<manifest.total_bytes)throw Error('Not enough browser storage for this copy.')}
+    const cache=await caches.open(CACHE);
+    for(const request of await cache.keys())await cache.delete(request);
+    let done=0,bytes=0;
+    syncInfo.textContent=`Preparing ${manifest.photo_count} photos for offline use…`;
+    const snapshot=await fetch(manifest.snapshot_url);
+    if(!snapshot.ok)throw Error('Snapshot failed');
+    const data=await snapshot.clone().json();
+    await cache.put(manifest.snapshot_url,snapshot);
+    const today=new Date().toISOString().slice(0,10);
+    for(const library of data.libraries){
+      let day=new Date(library.start_date+'T12:00:00');
+      while(day<=new Date()){
+        const date=day.toISOString().slice(0,10);
+        const url=`index.php?patient=${encodeURIComponent(PATIENT_ID)}&library=${encodeURIComponent(library.id)}&date=${date}&view=day`;
+        const page=await fetch(url);
+        if(!page.ok)throw Error('Offline page download failed');
+        await cache.put(url,page);
+        day.setDate(day.getDate()+1);
+      }
+      const galleryUrl=`index.php?patient=${encodeURIComponent(PATIENT_ID)}&library=${encodeURIComponent(library.id)}&date=${today}&view=gallery`;
+      const gallery=await fetch(galleryUrl);
+      if(!gallery.ok)throw Error('Offline gallery download failed');
+      await cache.put(galleryUrl,gallery);
+    }
+    for(const media of manifest.media){
+      const response=await fetch(media.url);
+      if(!response.ok)throw Error('Photo download failed');
+      await cache.put(media.url,response.clone());
+      done++;bytes+=media.bytes;
+      syncInfo.textContent=`Syncing ${done} / ${manifest.photo_count} photos · ${(bytes/1024).toFixed(1)} KB`;
+      await metaPut(PATIENT_ID,{complete:false,done,total:manifest.photo_count});
+    }
+    await metaPut(PATIENT_ID,{complete:true,at:Date.now(),revision:manifest.revision});
+    syncInfo.textContent='Offline copy complete.';
+    await refreshSync();
+  }catch(error){
+    syncInfo.textContent='Sync incomplete: '+error.message;
+    await metaPut(PATIENT_ID,{complete:false,at:Date.now()}).catch(()=>{});
+  }finally{syncBtn.disabled=false}
+}
 if(syncBtn)syncBtn.onclick=syncAll;refreshSync();
 const pendingBtn=document.getElementById('reviewPending');
 async function outboxAll(){const d=await db();return new Promise((ok,no)=>{const r=d.transaction('outbox').objectStore('outbox').getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
