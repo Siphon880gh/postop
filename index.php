@@ -705,7 +705,7 @@ $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$vi
 <?=modals($selected,$csrf,$date)?><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><?=pwa_controls()?><script><?=js()?></script></body></html>
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
-function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small></footer>';}
+function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small><a class="footer-maker" href="https://www.linkedin.com/in/weng-fung/" target="_blank" rel="noopener noreferrer">App made by Weng, ICU RN and Software Engineer</a></footer>';}
 function pwa_controls():string{return '<section id="pwa-actions" class="pwa-actions" aria-label="App installation" hidden><span class="pwa-actions-label">App</span><button type="button" id="pwa-install" class="pwa-action" hidden>Install</button><button type="button" id="pwa-uninstall" class="pwa-action" hidden>Uninstall</button><span id="pwa-status" class="sr-only" role="status" aria-live="polite"></span></section><dialog id="pwa-install-help" class="pwa-dialog" aria-labelledby="pwa-install-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-install-help-title">Install this app</h2><p>Use your browser\'s <strong>Install app</strong> or <strong>Add to Home Screen</strong> command to add this viewer to this device.</p><p class="muted tiny">Install does not create an offline copy. Use Sync all to this device for that separate, private action.</p></dialog><dialog id="pwa-uninstall-confirm" class="pwa-dialog" aria-labelledby="pwa-uninstall-confirm-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-uninstall-confirm-title">Uninstall this app?</h2><p>This removes the app worker and all local offline copies, including pending changes, from this browser. Server records are not changed.</p><p class="muted tiny">Your browser may also require you to remove the app icon from its app list or home screen.</p><div class="row"><button type="button" id="pwa-uninstall-confirm-button" class="danger">Uninstall</button><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Cancel</button></div></dialog>';}
 function first_run_page(string $setupCsrf):void{?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Set up · <?=APP_NAME?></title><style><?=css()?></style></head><body><main class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">First run</p><h1>Start with a sample patient pack</h1><p class="muted">No records or browser storage have been created yet. Create a local sample pack to explore the viewer.</p><form method="post"><input type="hidden" name="op" value="create_sample_pack"><input type="hidden" name="setup_csrf" value="<?=h($setupCsrf)?>"><button type="submit">Create sample patient pack</button></form><p class="muted tiny">This creates the local <code>storage/</code> folder and the demo sign-in account on this machine.</p></section></main><?=app_footer()?></body></html><?php exit;}
@@ -942,8 +942,8 @@ function assessment_panel(?array $u,string $woundId,string $woundName): string {
 }
 function assessment_form(?array $u): string {
     $a=assessment_of($u);
-    $o='<fieldset class="assess-fields"><legend>Assessment</legend><div class="assess-dims">';
-    foreach(['width'=>'Width','depth'=>'Depth','length'=>'Length'] as $k=>$lab)$o.='<label>'.$lab.' <span class="muted tiny">cm</span><input name="assess_'.$k.'" value="'.h($a[$k]).'" inputmode="decimal" maxlength="80" placeholder="—"></label>';
+    $o='<fieldset class="assess-fields"><legend>Assessment</legend><div class="assess-dim-header"><span class="assess-dim-title">W×D×L</span><span class="assess-unit-toggle" role="group" aria-label="W×D×L unit"><button type="button" class="assess-unit-btn is-selected" data-dimension-unit="cm" aria-label="Show dimensions in centimeters" aria-pressed="true">cm</button><button type="button" class="assess-unit-btn" data-dimension-unit="mm" aria-label="Show dimensions in millimeters" aria-pressed="false">mm</button><button type="button" class="assess-unit-btn" data-dimension-unit="in" aria-label="Show dimensions in inches" aria-pressed="false">in</button></span><span class="sr-only" data-dimension-status>Dimensions shown in centimeters</span></div><div class="assess-dims">';
+    foreach(['width'=>'Width','depth'=>'Depth','length'=>'Length'] as $k=>$lab)$o.='<label>'.$lab.' <span class="muted tiny dimension-unit-label">cm</span><input name="assess_'.$k.'" value="'.h($a[$k]).'" inputmode="decimal" maxlength="80" placeholder="—" data-dimension-input data-cm="'.h($a[$k]).'"></label>';
     $o.='</div>';
     foreach(['periskin'=>'Periskin','drainage'=>'Drainage','smell'=>'Odor','dressing'=>'Dressing','treatment'=>'Treatment'] as $k=>$lab){
         $ph=['periskin'=>'e.g. intact, erythema','drainage'=>'e.g. none, scant serous','smell'=>'e.g. none, faint, foul','dressing'=>'e.g. gauze, foam','treatment'=>'e.g. saline, ointment'][$k];
@@ -1082,11 +1082,15 @@ function css():string{return <<<'CSS'
 .patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}#photo-gallery-card{scroll-margin-top:88px}.gallery-order-toggle{display:grid;place-items:center;flex:none;width:38px;height:38px;min-height:38px;padding:0;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brand);font-size:1.35rem;font-weight:850;line-height:1}.gallery-order-toggle:hover{background:#edf5f2;color:var(--brand)}.note-entry{display:flex;align-items:flex-start;gap:8px}.note-mark{flex:none;width:16px;height:16px;margin-top:3px;color:#7a4314}
 .patient-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.patient-picker .patient-card{width:100%;max-width:none}
 .iconbtn{width:28px;height:28px;min-height:28px;padding:0;font-size:1.05rem;line-height:1}
-footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}
-footer .footer-status{display:inline-flex;align-items:center;margin-top:8px}
-footer .footer-status{cursor:pointer;border:0}footer .footer-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
+footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}.footer-maker{display:block;margin-top:8px;color:var(--brand);font-size:.72rem;font-weight:750;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}.footer-maker:hover{color:var(--ink)}
+.sync-utility-tray{display:flex;align-items:center;gap:8px;min-height:38px;margin-top:9px;padding:5px 0;border-top:1px solid #c9d9d6}.sync-utility-tray::before{content:'DEVICE';flex:none;color:#68807c;font-size:.62rem;font-weight:850;letter-spacing:.08em}.sync-utility-tray .sync-status{display:inline-flex;align-items:center;margin:0;padding:.25rem .55rem;cursor:pointer;border:0;font-size:.7rem}.sync-utility-tray .sync-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
 .pwa-actions{display:flex;align-items:center;justify-content:center;gap:8px;margin:-14px auto 18px;color:var(--muted);font-size:.72rem}.pwa-actions[hidden]{display:none}.pwa-actions-label{font-weight:800;letter-spacing:.06em;text-transform:uppercase}.pwa-action{min-height:28px;padding:.22rem .5rem;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.pwa-action:hover{background:#e8f1ef;color:var(--brand);filter:none}.pwa-action:focus-visible{outline-offset:1px}.pwa-dialog{width:min(430px,calc(100% - 28px));padding:22px 24px}.pwa-dialog h2{font-size:1.25rem}.pwa-dialog p{margin:.6rem 0 0;color:var(--ink);line-height:1.5}.pwa-dialog .muted{color:var(--muted)}.pwa-dialog .row{margin-top:18px}.pwa-dialog .danger{background:var(--danger);color:#fff}
+.sync-utility-tray .pwa-actions{justify-content:flex-start;gap:5px;margin:0}.sync-utility-tray .pwa-actions-label{font-size:.62rem}.sync-utility-tray .pwa-action{min-height:26px;padding:.18rem .4rem}
+.sync-utility-tray:has(.sync-status) .pwa-actions:not([hidden]){min-height:22px;padding-left:9px;border-left:1px solid #b8cbc6}
+.assess-dim-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:-2px}.assess-dim-title{font-size:.72rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}.assess-unit-toggle{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:#fff}.assess-unit-btn{min-height:26px;padding:.2rem .45rem;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.assess-unit-btn:hover{background:#edf5f2;color:var(--brand);filter:none}.assess-unit-btn.is-selected{background:var(--brand);color:#fff}
 .sync-card-frame{position:relative;margin-top:18px}.sync-card-frame .sync-card{margin-top:0}.sync-clear{position:absolute;top:7px;right:7px;z-index:1;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand2);font-size:1.3rem;font-weight:500;line-height:1}.sync-clear:hover{background:#d5e6e9;filter:none}
+.sync-utility-tray+.sync-card-frame{margin-top:8px}
+.sync-device-panel{margin-top:18px;padding:10px;border:1px solid #bad1da;border-radius:12px;background:#f8fbfb}.sync-device-panel .sync-utility-tray{margin-top:0;padding:0 0 8px;border-top:0;border-bottom:1px solid #c9d9d6}.sync-device-panel .sync-card-frame{margin-top:8px}.sync-device-panel .sync-card{margin-top:0;border:0;border-radius:8px;box-shadow:none}.sync-device-panel #syncInfo:not(:empty){margin:7px 2px 0}
 .account-trigger{min-height:0;padding:.25rem 0;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:.86rem;font-weight:700;box-shadow:none}.account-trigger:hover{background:transparent;color:var(--ink);filter:none;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
 .top-actions #editMode{display:none}.edit-mode-bar{position:sticky;top:68px;z-index:9;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 22px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 8px 18px rgba(22,50,56,.08)}.edit-mode-bar>span{display:flex;align-items:baseline;gap:8px;min-width:0}.edit-mode-bar strong{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}.edit-mode-bar small{color:var(--muted);font-size:.75rem}.edit-mode-bar #editMode{display:inline-flex;margin-left:auto}
 .angle-nav-spacer{display:block;min-width:44px}.angle-nav{font-weight:850}.wound-photo-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px}.wound-photo-meta-spacer{flex:1;min-width:0}.photo-date-navigation{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted)}.card-date-navigation{width:fit-content;margin:0}.assess-panel{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;width:fit-content;max-width:min(100%,34rem);margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted);min-height:0;font-weight:500;text-align:left;box-shadow:none}.assess-panel:hover{filter:none;background:#eaf2f0}.assess-chip{display:flex;flex-direction:column;gap:0;min-width:0}.assess-chip small{font-size:.58rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase;color:#8a9aa0;line-height:1.1}.assess-panel.is-empty{padding:4px 7px;gap:5px 7px}.assess-panel.is-empty .assess-chip small{font-size:.54rem;color:#93a2a4}.assess-chip.is-set small{color:#5d7370}.assess-chip.is-set b{font-size:.76rem;font-weight:800;color:var(--ink);line-height:1.15;font-variant-numeric:tabular-nums}.missing .assess-panel{background:#eef1f1;border-color:#d2d9d8}.missing .assess-chip.is-set b{color:#3d5053}.assess-fields{display:grid;gap:10px;margin:0;padding:12px 12px 4px;border:1px solid var(--line);border-radius:10px;background:#f7fbfa}.assess-fields legend{padding:0 .3rem;font-size:.72rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}.assess-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.assess-dims input{padding:.5rem .55rem}.photo-date-navigation>span{font-size:.68rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.photo-date-navigation>div{display:flex;gap:5px}.photo-date-navigation button{min-height:32px;padding:.34rem .58rem;font-size:.75rem}.lightbox-context{flex:none;margin:4px 48px 12px 0}.photo-lightbox .lightbox-context h2{margin:.12rem 0;color:#e8f0ee}.photo-lightbox #lightbox-date{color:#b7c9c5}.photo-lightbox #lightbox-wound{margin:0;color:#b7c9c5;font-size:.86rem}.photo-lightbox .lightbox-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px}.photo-lightbox .lightbox-date-navigation{width:fit-content;margin:0;border-color:#314244;background:#182426;color:#b7c9c5}.photo-lightbox .lightbox-date-navigation button{background:#223336;color:#e8f0ee;border-color:#43585a}.photo-lightbox .lightbox-assess{background:#182426;border-color:#314244;color:#b7c9c5}.photo-lightbox .lightbox-assess:hover{filter:none;background:#223336}.photo-lightbox .assess-chip small{color:#8a9aa0}.photo-lightbox .assess-chip.is-set small{color:#9eb0ad}.photo-lightbox .assess-chip.is-set b{color:#e8f0ee}
@@ -1161,6 +1165,34 @@ document.querySelectorAll('.weight-control').forEach(el=>{
     buttons.forEach(b=>b.setAttribute('aria-pressed',b.dataset.unit===unit?'true':'false'));
   }
   buttons.forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();paint(b.dataset.unit)}));
+});
+const dimensionFactors={cm:1,mm:.1,in:2.54};
+document.querySelectorAll('.assess-fields').forEach(fieldset=>{
+  const inputs=[...fieldset.querySelectorAll('[data-dimension-input]')];
+  const buttons=[...fieldset.querySelectorAll('[data-dimension-unit]')];
+  const labels=[...fieldset.querySelectorAll('.dimension-unit-label')];
+  const status=fieldset.querySelector('[data-dimension-status]');
+  let unit='cm';
+  const number=value=>{const n=Number.parseFloat(String(value).trim());return Number.isFinite(n)?n:null};
+  const display=(value,next)=>{
+    const n=number(value);if(n===null)return value;
+    const decimals=next==='in'?2:next==='mm'?1:2;
+    return Number((n/dimensionFactors[next]).toFixed(decimals)).toString();
+  };
+  const rememberCm=input=>{
+    const n=number(input.value);
+    input.dataset.cm=n===null?'':String(n*dimensionFactors[unit]);
+  };
+  const paint=next=>{
+    inputs.forEach(rememberCm);
+    unit=next;
+    inputs.forEach(input=>{input.value=display(input.dataset.cm,unit)});
+    labels.forEach(label=>{label.textContent=unit});
+    buttons.forEach(button=>{const selected=button.dataset.dimensionUnit===unit;button.classList.toggle('is-selected',selected);button.setAttribute('aria-pressed',selected?'true':'false')});
+    if(status)status.textContent='Dimensions shown in '+(unit==='in'?'inches':unit);
+  };
+  buttons.forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();paint(button.dataset.dimensionUnit)}));
+  fieldset.closest('form')?.addEventListener('submit',()=>{inputs.forEach(input=>{rememberCm(input);if(input.dataset.cm!=='')input.value=Number(Number(input.dataset.cm).toFixed(2)).toString()})});
 });
 function closeNoteTips(except){
   document.querySelectorAll('.note-icon-wrap.is-open').forEach(w=>{if(w!==except)w.classList.remove('is-open','is-pinned')});
@@ -1437,12 +1469,11 @@ if(lightbox){
 }
 const network=document.getElementById('network');
 if(network){
-  network.classList.add('footer-status');
+  network.classList.add('sync-status');
   network.setAttribute('role','button');
   network.setAttribute('tabindex','0');
   network.setAttribute('aria-haspopup','dialog');
   network.setAttribute('aria-label','Explain connection status');
-  document.querySelector('footer')?.append(network);
   const networkInfo=document.createElement('dialog');
   networkInfo.className='network-info';
   networkInfo.innerHTML='<button type="button" class="close" aria-label="Close">×</button><h2>Connection status</h2><p><strong>Online</strong> or <strong>Offline</strong> reflects whether this device has an internet connection.</p><p>A reliable connection is needed to load and save photos, unless you previously synced a complete offline copy to this device.</p>';
@@ -1499,10 +1530,20 @@ pwaUninstallConfirmButton?.addEventListener('click',async()=>{
 });
 renderPwaControls();
 const syncBtn=document.getElementById('syncButton'),syncInfo=document.getElementById('syncInfo');
+function syncUtilityTray(){
+  if(!syncBtn||!syncInfo)return null;
+  let tray=document.getElementById('sync-utility-tray');
+  if(!tray){tray=document.createElement('div');tray.id='sync-utility-tray';tray.className='sync-utility-tray';syncBtn.before(tray)}
+  return tray;
+}
+const syncTray=syncUtilityTray();
+if(syncTray){if(network)syncTray.append(network);if(pwaActions)syncTray.append(pwaActions)}
 function clearCopyButton(){
   if(!syncBtn)return null;
   let frame=syncBtn.closest('.sync-card-frame');
   if(!frame){frame=document.createElement('div');frame.className='sync-card-frame';syncBtn.before(frame);frame.append(syncBtn)}
+  let panel=document.getElementById('sync-device-panel');
+  if(!panel){panel=document.createElement('section');panel.id='sync-device-panel';panel.className='sync-device-panel';frame.before(panel);if(syncTray)panel.append(syncTray);panel.append(frame);if(syncInfo)panel.append(syncInfo)}
   let button=frame.querySelector('.sync-clear');
   if(!button){button=document.createElement('button');button.type='button';button.className='sync-clear';button.setAttribute('aria-label','Remove device copy');button.setAttribute('title','Remove device copy');button.textContent='×';button.addEventListener('click',clearCopy);frame.append(button)}
   return button;
