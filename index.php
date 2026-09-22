@@ -44,6 +44,15 @@ function atomic_write(string $path, array $data): void {
     } finally { if (is_resource($fp)) fclose($fp); if (is_file($tmp)) unlink($tmp); }
 }
 function placeholder(string $serial): string { return '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720"><rect width="960" height="720" fill="#07090b"/><text x="480" y="365" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="64">'.htmlspecialchars($serial, ENT_XML1).'</text></svg>'; }
+function seeded_demo_photo(string $patientDir,string $libraryId,string $woundId,string $date,string $id,string $serial,string $angle,string $caption,int $order): array {
+    $slug=trim(preg_replace('/[^a-z0-9]+/','-',strtolower($angle)),'-')?:'shot';
+    $name=sprintf('%02d-%s-%s.svg',$order,$slug,$id);
+    $dir="$patientDir/libraries/$libraryId/wounds/$woundId/$date";
+    if(!is_dir($dir)&&!mkdir($dir,0770,true))fail('Could not create seeded photo storage.',500);
+    $path="$dir/$name";
+    if(!is_file($path)&&file_put_contents($path,placeholder($serial))===false)fail('Could not create a seeded demo photo.',500);
+    return ['id'=>$id,'angle'=>$angle,'caption'=>$caption,'created_at'=>now(),'sort_order'=>$order,'filename'=>$name,'mime'=>'image/svg+xml','bytes'=>filesize($path)];
+}
 function seed(string $dataFile, string $patientDir): void {
     if (is_file($dataFile)) return;
     $today = new DateTimeImmutable('today'); $start = $today->modify('-12 days'); $partial = $today->modify('-2 days')->format('Y-m-d'); $complete = $today->modify('-1 day')->format('Y-m-d');
@@ -52,45 +61,60 @@ function seed(string $dataFile, string $patientDir): void {
     $priorId='photo-seeded-prior-date';$priorName='01-shot-'.$priorId.'.svg';$priorDir="$patientDir/libraries/left-heel/wounds/lateral-incision/$partial";
     if (!is_dir($priorDir)) mkdir($priorDir,0770,true); file_put_contents("$priorDir/$priorName",placeholder('IMG-4D2A71'));
     $priorPhotos=[['id'=>$priorId,'angle'=>'Progress check','caption'=>'Seeded prior-day reference image','created_at'=>now(),'sort_order'=>1,'filename'=>$priorName,'mime'=>'image/svg+xml','bytes'=>filesize("$priorDir/$priorName")]];
-    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>2,'revision'=>1,'libraries'=>[
+    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>3,'revision'=>1,'libraries'=>[
       ['id'=>'left-heel','name'=>'Left Heel Post-op Recovery','type'=>'Postoperative Wound','custom_type'=>'','start_date'=>$start->format('Y-m-d'),'description'=>'Track recovery milestones and dressing observations.','revision'=>1,'notes'=>[['id'=>'note-lib-1','text'=>'Review progress at each dressing change.','created_at'=>now()]],'day_notes'=>[$partial=>[['id'=>'note-day-1','text'=>'Patient reported improved comfort.','created_at'=>now()]]],'wounds'=>[
         ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[],'day_notes'=>[$partial=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]]],'updates'=>[$partial=>['note'=>'Dressing changed; prior progress image available.','photos'=>$priorPhotos],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
         ['id'=>'donor-site','name'=>'Donor site','location'=>'Posterior heel','active'=>true,'notes'=>[],'day_notes'=>[],'updates'=>[$complete=>['note'=>'Clean and dry.','photos'=>[]]]]
       ]],
       ['id'=>'mole-monitor','name'=>'Mole Monitoring','type'=>'Mole Monitoring','custom_type'=>'','start_date'=>$today->modify('-20 days')->format('Y-m-d'),'description'=>'Demo longitudinal comparison library.','revision'=>1,'notes'=>[],'day_notes'=>[],'wounds'=>[['id'=>'medial-site','name'=>'Medial site','location'=>'Left ankle','active'=>true,'notes'=>[],'day_notes'=>[],'updates'=>[]]]]
-    ]]; atomic_write($dataFile,$data);
+    ]];
+    seed_demo_photo_dates($data,$patientDir);
+    atomic_write($dataFile,$data);
 }
-function seed_additional_demo_photo_date(string $dataFile,string $patientDir): void {
-    $raw=@file_get_contents($dataFile);$data=$raw===false?null:json_decode($raw,true);
-    if(!is_array($data)||(int)($data['seed_version']??1)>=2||(string)($data['patient']['id']??'')!==DEFAULT_PATIENT_ID)return;
+function seed_demo_photo_dates(array &$data,string $patientDir): bool {
+    if((string)($data['patient']['id']??'')!==DEFAULT_PATIENT_ID)return false;
+    $today=new DateTimeImmutable('today');
+    $dates=[
+        ['offset'=>-11,'wound'=>'lateral-incision','id'=>'photo-seeded-baseline','serial'=>'IMG-10C8A3','angle'=>'Baseline','caption'=>'Initial postoperative reference image.'],
+        ['offset'=>-9,'wound'=>'lateral-incision','id'=>'photo-seeded-day-9-front','serial'=>'IMG-5E72B1','angle'=>'Front','caption'=>'Healing progress reference image.'],
+        ['offset'=>-9,'wound'=>'lateral-incision','id'=>'photo-seeded-day-9-side','serial'=>'IMG-91F4D0','angle'=>'Side','caption'=>'Healing progress reference image.'],
+        ['offset'=>-7,'wound'=>'lateral-incision','id'=>'photo-seeded-day-7','serial'=>'IMG-3A6E9C','angle'=>'Progress check','caption'=>'Dressing-change reference image.'],
+        ['offset'=>-5,'wound'=>'lateral-incision','id'=>'photo-seeded-day-5-front','serial'=>'IMG-C8472E','angle'=>'Front','caption'=>'Mid-recovery reference image.'],
+        ['offset'=>-5,'wound'=>'lateral-incision','id'=>'photo-seeded-day-5-side','serial'=>'IMG-64B9F5','angle'=>'Side','caption'=>'Mid-recovery reference image.'],
+        ['offset'=>-5,'wound'=>'donor-site','id'=>'photo-seeded-donor-day-5','serial'=>'IMG-D8A51F','angle'=>'Posterior','caption'=>'Donor-site progress reference image.'],
+        ['offset'=>-3,'wound'=>'lateral-incision','id'=>'photo-seeded-day-3','serial'=>'IMG-2F7C68','angle'=>'Progress check','caption'=>'Latest dressing-change reference image.'],
+    ];
+    $changed=false;
     foreach($data['libraries'] as &$library){
         if(($library['id']??'')!=='left-heel')continue;
-        foreach(($library['wounds']??[]) as &$wound){
-            if(($wound['id']??'')!=='lateral-incision')continue;
-            $updates=$wound['updates']??[];$photoDates=[];$priorDate=null;
-            foreach($updates as $ds=>$update){
-                if(!empty($update['photos']))$photoDates[]=$ds;
+        foreach($dates as $entry){
+            $date=$today->modify($entry['offset'].' days')->format('Y-m-d');
+            if($date<(string)($library['start_date']??''))continue;
+            foreach($library['wounds'] as &$wound){
+                if(($wound['id']??'')!==$entry['wound'])continue;
+                $wound['updates'][$date]??=['photos'=>[]];
+                $exists=false;
+                foreach($wound['updates'][$date]['photos'] as $photo)if(($photo['id']??'')===$entry['id']){$exists=true;break;}
+                if(!$exists){
+                    $order=count($wound['updates'][$date]['photos'])+1;
+                    $wound['updates'][$date]['photos'][]=seeded_demo_photo($patientDir,$library['id'],$wound['id'],$date,$entry['id'],$entry['serial'],$entry['angle'],$entry['caption'],$order);
+                    $changed=true;
+                }
+                break;
             }
-            if(!$photoDates)break;
-            rsort($photoDates);$latestPhotoDate=$photoDates[0];
-            foreach($updates as $ds=>$update)if($ds<$latestPhotoDate&&empty($update['photos'])&&($priorDate===null||$ds>$priorDate))$priorDate=$ds;
-            if($priorDate===null)break;
-            $id='photo-seeded-prior-date';$exists=false;
-            foreach(($wound['updates'][$priorDate]['photos']??[]) as $photo)if(($photo['id']??'')===$id)$exists=true;
-            if(!$exists){
-                $name='01-shot-'.$id.'.svg';$dir="$patientDir/libraries/left-heel/wounds/lateral-incision/$priorDate";
-                if(!is_dir($dir)&&!mkdir($dir,0770,true))fail('Could not create seeded photo storage.',500);
-                $path="$dir/$name";
-                if(!is_file($path)&&file_put_contents($path,placeholder('IMG-4D2A71'))===false)fail('Could not create the seeded prior-day photo.',500);
-                $wound['updates'][$priorDate]['photos'][]=['id'=>$id,'angle'=>'Progress check','caption'=>'Seeded prior-day reference image','created_at'=>now(),'sort_order'=>count($wound['updates'][$priorDate]['photos'])+1,'filename'=>$name,'mime'=>'image/svg+xml','bytes'=>filesize($path)];
-                $wound['updates'][$priorDate]['note']='Dressing changed; prior progress image available.';
-            }
-            $library['revision']=($library['revision']??0)+1;
-            $data['revision']=($data['revision']??0)+1;$data['seed_version']=2;atomic_write($dataFile,$data);return;
+            unset($wound);
         }
-        unset($wound);
+        if($changed)$library['revision']=($library['revision']??0)+1;
+        break;
     }
     unset($library);
+    return $changed;
+}
+function ensure_demo_photo_dates(string $dataFile,string $patientDir): void {
+    $raw=@file_get_contents($dataFile);$data=$raw===false?null:json_decode($raw,true);
+    if(!is_array($data)||(string)($data['patient']['id']??'')!==DEFAULT_PATIENT_ID)return;
+    if(!seed_demo_photo_dates($data,$patientDir)&&(int)($data['seed_version']??1)>=3)return;
+    $data['revision']=($data['revision']??0)+1;$data['seed_version']=3;atomic_write($dataFile,$data);
 }
 function pipeline_in_dir(): string { return __DIR__.'/pipeline-in'; }
 function pipeline_list_dirs(string $path): array {
@@ -544,13 +568,14 @@ if(!is_file($sampleDataFile)||!is_file($accountFile)){
     if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['op']??'')==='create_sample_pack'){
         if(!hash_equals((string)$_SESSION['setup_csrf'],(string)($_POST['setup_csrf']??'')))fail('Invalid setup request.',403);
         seed($sampleDataFile,$samplePatientDir);
-        seed_additional_demo_photo_date($sampleDataFile,$samplePatientDir);
+        ensure_demo_photo_dates($sampleDataFile,$samplePatientDir);
         seed_account($accountFile);
         ensure_avatar_assets($samplePatientDir);
         header('Location: index.php');exit;
     }
     first_run_page((string)$_SESSION['setup_csrf']);
 }
+ensure_demo_photo_dates($sampleDataFile,$samplePatientDir);
 if(!is_file($dataFile))fail('Patient record not found.',404);
 ensure_avatar_assets($patientDir);
 

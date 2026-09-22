@@ -88,3 +88,6 @@ Production use requires HTTPS. Service workers are also supported on localhost
 for development. This is a recordkeeping demo for internal testing only, not a
 diagnostic tool, emergency service, certified EHR, or HIPAA-compliant system.
 
+## Future Plan
+
+Sample Patient will contain AI generated photos of a post op wound with the words "AI Generated / Not real patient"
