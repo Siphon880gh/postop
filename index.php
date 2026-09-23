@@ -711,9 +711,21 @@ function first_run_page(string $setupCsrf):void{?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Set up · <?=APP_NAME?></title><style><?=css()?></style></head><body><main class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">First run</p><h1>Start with a sample patient pack</h1><p class="muted">No records or browser storage have been created yet. Create a local sample pack to explore the viewer.</p><form method="post"><input type="hidden" name="op" value="create_sample_pack"><input type="hidden" name="setup_csrf" value="<?=h($setupCsrf)?>"><button type="submit">Create sample patient pack</button></form><p class="muted tiny">This creates the local <code>storage/</code> folder and the demo sign-in account on this machine.</p></section></main><?=app_footer()?></body></html><?php exit;}
 function sync_count(array $d):int{$n=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)$n+=count($u['photos']);return $n;}
 function gallery_order():string{return (($_GET['gallery_order']??'')==='asc')?'asc':'desc';}
+function note_filter_query():string{
+    $query=trim((string)($_GET['note_filter']??''));
+    return function_exists('mb_substr')?mb_substr($query,0,200,'UTF-8'):substr($query,0,200);
+}
+function note_text_matches_filter(string $noteText,string $query):bool{
+    if($query==='')return true;
+    if(function_exists('mb_stripos'))return mb_stripos($noteText,$query,0,'UTF-8')!==false;
+    return stripos($noteText,$query)!==false;
+}
 function app_url(string $library,string $date,string $view='day',?string $galleryOrder=null):string{
     $url='?patient='.rawurlencode(active_patient_id()).'&library='.rawurlencode($library).'&date='.rawurlencode($date).'&view='.rawurlencode($view);
-    return $view==='gallery'?$url.'&gallery_order='.rawurlencode($galleryOrder??gallery_order()):$url;
+    if($view==='gallery')$url.='&gallery_order='.rawurlencode($galleryOrder??gallery_order());
+    $filter=note_filter_query();
+    if($filter!=='')$url.='&note_filter='.rawurlencode($filter);
+    return $url;
 }
 function photo_count_on_date(array $l,string $ds):int{$n=0;foreach($l['wounds'] as $w)$n+=count($w['updates'][$ds]['photos']??[]);return $n;}
 function notes_count_on_date(array $l,string $ds):int{
@@ -1037,24 +1049,26 @@ function note_filter_presets_html(): string {
     return $html.'</div>';
 }
 function timeline(array $l,string $date,string $view='day'):string{
+    $filter=note_filter_query();$active=$filter!=='';
     $start=new DateTimeImmutable($l['start_date']);$end=new DateTimeImmutable('today');$cur=new DateTimeImmutable($date);$month=$cur->format('Y-m');
     $first=maxdate($start,new DateTimeImmutable($month.'-01'));$last=mindate($end,new DateTimeImmutable($month.'-01 last day of this month'));
     $out='<nav class="timeline" aria-label="Date timeline"><div class="month-nav"><a href="'.app_url($l['id'],$cur->modify('-1 month')->format('Y-m-d'),$view).'">Previous month</a><strong>'.$cur->format('F Y').'</strong><a href="'.app_url($l['id'],$cur->modify('+1 month')->format('Y-m-d'),$view).'">Next month</a><a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div><div class="date-row">';$hasNotes=false;
     for($x=$first;$x<=$last;$x=$x->modify('+1 day')){
         $ds=$x->format('Y-m-d');$photos=photo_count_on_date($l,$ds);$nn=notes_count_on_date($l,$ds);$noteText=note_search_text_on_date($l,$ds);if($noteText!=='')$hasNotes=true;
         $label=$x->format('D j').($photos?', '.photo_word($photos):', no photos').($nn?', '.$nn.' note'.($nn===1?'':'s'):'');
-        $current=$ds===$date;
+        $current=$ds===$date;$matched=note_text_matches_filter($noteText,$filter);
         $badges=$nn?'<span class="date-chip-badges">'.date_count_badge('Notes',$nn,'note').'</span>':'';
-        $out.='<a aria-label="'.h($label).'" data-note-text="'.h($noteText).'"'.($current?' aria-current="date"':'').' class="date-chip '.($photos?'has-photos':'idle').' '.($current?'current':'').'" href="'.app_url($l['id'],$ds,$view).'"><small>'.$x->format('D').'</small><b>'.$x->format('j').'</b>'.($photos?'<span class="photo-mark" aria-hidden="true">'.$photos.'</span>':'').$badges.'</a>';
+        $out.='<a aria-label="'.h($label).'" data-note-text="'.h($noteText).'"'.($current?' aria-current="date"':'').($matched?'':' hidden').' class="date-chip '.($photos?'has-photos':'idle').' '.($current?'current':'').'" href="'.app_url($l['id'],$ds,$view).'"><small>'.$x->format('D').'</small><b>'.$x->format('j').'</b>'.($photos?'<span class="photo-mark" aria-hidden="true">'.$photos.'</span>':'').$badges.'</a>';
     }
-    if($hasNotes)$out.='<span class="timeline-note-filter" data-note-filter><button type="button" id="note-filter-trigger" class="timeline-note-filter-trigger" aria-label="Filter notes" aria-controls="note-filter-popover" aria-expanded="false" aria-haspopup="dialog" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5h16l-6.2 7.1V18l-3.6 1.8v-7.7L4 5zm3.3 2 4.7 5.4v4.2l.8-.4v-3.8L16.7 7H7.3z"/></svg><span class="sr-only">Filter notes</span></button></span>';
+    $showFilter=$hasNotes||$active;
+    if($showFilter)$out.='<span class="timeline-note-filter" data-note-filter><button type="button" id="note-filter-trigger" class="timeline-note-filter-trigger'.($active?' is-active':'').'" aria-label="'.($active?'Notes filter active: '.h($filter):'Filter notes').'" aria-controls="note-filter-popover" aria-expanded="false" aria-haspopup="dialog" aria-pressed="'.($active?'true':'false').'"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5h16l-6.2 7.1V18l-3.6 1.8v-7.7L4 5zm3.3 2 4.7 5.4v4.2l.8-.4v-3.8L16.7 7H7.3z"/></svg><span class="sr-only">Filter notes</span></button></span>';
     $out.='</div>';
-    if($hasNotes)$out.='<div id="note-filter-popover" class="timeline-note-filter-popover" role="dialog" aria-label="Filter notes" hidden><div class="note-filter-field"><label class="sr-only" for="note-filter-input">Filter notes</label><input type="search" id="note-filter-input" placeholder="Filter notes" autocomplete="off"><button type="button" class="note-filter-help" onclick="showModal(\'note-filter-help\')" aria-label="How note filtering works">i</button></div>'.note_filter_presets_html().'<div class="note-filter-meta"><span id="note-filter-status" role="status" aria-live="polite"></span><button type="button" id="note-filter-clear" class="ghost small" hidden>Clear</button></div></div>';
+    if($showFilter)$out.='<div id="note-filter-popover" class="timeline-note-filter-popover" role="dialog" aria-label="Filter notes" hidden><div class="note-filter-field"><label class="sr-only" for="note-filter-input">Filter notes</label><input type="search" id="note-filter-input" placeholder="Filter notes" autocomplete="off" value="'.h($filter).'"><button type="button" class="note-filter-help" onclick="showModal(\'note-filter-help\')" aria-label="How note filtering works">i</button></div>'.note_filter_presets_html().'<div class="note-filter-meta"><span id="note-filter-status" role="status" aria-live="polite"></span><button type="button" id="note-filter-clear" class="ghost small"'.($active?'':' hidden').'>Clear</button></div></div>';
     return $out.'</nav>';
 }
 function maxdate(DateTimeImmutable $a,DateTimeImmutable $b):DateTimeImmutable{return $a>$b?$a:$b;}function mindate(DateTimeImmutable $a,DateTimeImmutable $b):DateTimeImmutable{return $a<$b?$a:$b;}
 function dialog_start(string $id,string $title):string{return '<dialog id="'.$id.'" aria-labelledby="'.$id.'-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="'.$id.'-title">'.h($title).'</h2>';}
-function note_filter_help_modal():string{return '<dialog id="note-filter-help" class="note-filter-help-dialog" aria-labelledby="note-filter-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="note-filter-help-title">Filter notes</h2><p>Type a word or phrase to show timeline dates with day or wound notes that contain it.</p><p class="muted tiny">Clear the field to show every date again.</p></dialog>';}
+function note_filter_help_modal():string{return '<dialog id="note-filter-help" class="note-filter-help-dialog" aria-labelledby="note-filter-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="note-filter-help-title">Filter notes</h2><p>Type a word or phrase to show timeline dates with day or wound notes that contain it.</p><p class="muted tiny">The filter stays when you select a date. Opening a progress library or patient record clears it. Clear the field to show every date again.</p></dialog>';}
 function account_modal(array $account,string $csrf,string $returnTo):string{
     $name=h($account['display_name']);
     return '<button type="button" id="account-trigger" class="account-trigger" onclick="showModal(\'account-information\')" aria-label="Open account information for '.$name.'">Welcome '.$name.'</button>'
@@ -1275,7 +1289,8 @@ document.querySelector('.date-chip.current')?.scrollIntoView({inline:'nearest',b
     if(focus)trigger.focus();
   };
   const paint=()=>{
-    const query=input.value.trim().toLocaleLowerCase();
+    const raw=input.value.trim();
+    const query=raw.toLocaleLowerCase();
     let matches=0;
     chips.forEach(chip=>{
       const matched=!query||chip.dataset.noteText.toLocaleLowerCase().includes(query);
@@ -1285,9 +1300,15 @@ document.querySelector('.date-chip.current')?.scrollIntoView({inline:'nearest',b
     const active=Boolean(query);
     trigger.classList.toggle('is-active',active);
     trigger.setAttribute('aria-pressed',String(active));
-    trigger.setAttribute('aria-label',active?'Notes filter active: '+input.value.trim():'Filter notes');
+    trigger.setAttribute('aria-label',active?'Notes filter active: '+raw:'Filter notes');
     clear.hidden=!active;
     status.textContent=active?matches+' matching date'+(matches===1?'':'s'):'';
+    document.querySelectorAll('a[href*="date="]').forEach(link=>{
+      const url=new URL(link.getAttribute('href'),location.origin);
+      if(raw)url.searchParams.set('note_filter',raw);
+      else url.searchParams.delete('note_filter');
+      link.setAttribute('href',url.search+url.hash);
+    });
   };
   trigger.addEventListener('click',()=>{
     const open=popover.hidden;
@@ -1305,6 +1326,7 @@ document.querySelector('.date-chip.current')?.scrollIntoView({inline:'nearest',b
   document.addEventListener('keydown',event=>{
     if(event.key==='Escape'&&!popover.hidden){event.preventDefault();close(true)}
   });
+  paint();
 })();
 document.querySelectorAll('.angle-set').forEach(set=>{
   const figures=[...set.querySelectorAll('.angle-frames figure')];
@@ -1349,7 +1371,10 @@ function visitPhotoDate(set,delta){
   const dates=photoDatesFor(set);if(dates.length<2)return;
   const current=Math.max(0,dates.indexOf(set.dataset.date||''));
   const target=dates[(current+delta+dates.length)%dates.length];
-  const url=new URL(location.href);url.searchParams.set('date',target);url.hash='';location.assign(url.toString());
+  const url=new URL(location.href);url.searchParams.set('date',target);url.hash='';
+  const filter=document.getElementById('note-filter-input')?.value.trim()||'';
+  if(filter)url.searchParams.set('note_filter',filter);else url.searchParams.delete('note_filter');
+  location.assign(url.toString());
 }
 const lightbox=document.getElementById('photo-lightbox');
 let lbSet=null,lbPhotos=[],lbIndex=0,lbDate='',lbDates=[],lbWoundId='',lbWoundName='',lbWoundDescription='',lbAssessment={};
