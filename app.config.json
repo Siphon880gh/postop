@@ -1,0 +1,10 @@
+{
+  "note_filter": {
+    "quick_label": "Quick:",
+    "presets": [
+      "CONCERN:",
+      "CHANGE:",
+      "GAUZE:"
+    ]
+  }
+}
