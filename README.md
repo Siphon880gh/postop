@@ -84,12 +84,25 @@ sync metadata and the pending-change outbox. **Clear device copy** removes the
 browser copy without changing server records. Logout asks the browser to clear
 the local cache and storage.
 
-When the browser supports installation, a quiet **App · Install** control appears
-below the footer. Installing adds the viewer to the device but does not download
-records; use Sync all to this device for that separate, explicit action. In the
-installed app, **App · Uninstall** removes the service worker and all local
-offline copies after confirmation; server records remain unchanged. Some browsers
-also require removing the app icon from their app list or home screen.
+An app control is always available below the footer. A browser tab shows **App ·
+Install/Open** while installation status is unknown. It uses the browser's native
+install prompt when one is available; otherwise it explains how to install or
+open the app on the current platform. A positive installed-app result from a
+supported browser changes the controls to **App · Open · Uninstall**. The
+installed PWA itself shows only **App · Uninstall**.
+
+Apple browsers do not reliably report whether the app is installed elsewhere on
+the device, so they keep the honest **Install/Open** fallback in a browser tab.
+On iPhone and iPad, the instructions direct the user to the Home Screen icon or
+to **Share → Add to Home Screen**. On Mac, Safari uses **File → Add to Dock**.
+An ordinary web URL cannot force an installed PWA to open, so **Open** explains
+where to launch it when no supported launch mechanism exists. **Uninstall**
+explains the device or browser removal steps; it does not misrepresent clearing
+caches or unregistering a service worker as removing the installed app. Offline
+patient data remains under the separate **Clear device copy** control.
+
+Installing adds the viewer to the device but does not download records; use Sync
+all to this device for that separate, explicit action.
 
 Production use requires HTTPS. Service workers are also supported on localhost
 for development. This is a recordkeeping demo for internal testing only, not a

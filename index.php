@@ -556,7 +556,7 @@ function remove_tree(string $path,string $scope): void { $realBase=realpath($sco
 
 session_name('skin_wound_viewer'); session_start(['cookie_httponly'=>true,'cookie_samesite'=>'Strict','use_strict_mode'=>true]);
 $action=$_GET['action']??'';
-if($action==='manifest'){header('Content-Type: application/manifest+json');header('Cache-Control: public, max-age=3600');echo json_encode(['id'=>'./index.php','name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
+if($action==='manifest'){$host=(string)($_SERVER['HTTP_HOST']??'localhost');if(!preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/',$host))$host='localhost';$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$appUrl=$scheme.'://'.$host.(string)($_SERVER['SCRIPT_NAME']??'/index.php');header('Content-Type: application/manifest+json');header('Cache-Control: public, max-age=3600');echo json_encode(['id'=>'./index.php','name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'launch_handler'=>['client_mode'=>'focus-existing'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'related_applications'=>[['platform'=>'webapp','url'=>$appUrl.'?action=manifest','id'=>$appUrl]],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
 if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format']??'')==='png'&&function_exists('imagecreatetruecolor')){header('Content-Type: image/png');$image=imagecreatetruecolor($s,$s);$blue=imagecolorallocate($image,22,78,99);$white=imagecolorallocate($image,255,255,255);imagefilledrectangle($image,0,0,$s,$s,$blue);$stroke=max(10,(int)round($s*.1));$start=(int)round($s*.28);$end=(int)round($s*.72);$middle=(int)round($s*.5);imagefilledrectangle($image,$start,$middle-(int)($stroke/2),$end,$middle+(int)($stroke/2),$white);imagefilledrectangle($image,$middle-(int)($stroke/2),$start,$middle+(int)($stroke/2),$end,$white);imagepng($image);imagedestroy($image);exit;}header('Content-Type: image/svg+xml');echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
 if($action==='service-worker'){header('Content-Type: application/javascript');header('Cache-Control: no-cache, no-store, must-revalidate');header('Service-Worker-Allowed: ./');echo <<<'JS'
 const SHELL='swcv-shell-v2',PATIENT_CACHE='swcv-patient-';
@@ -706,7 +706,7 @@ $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$vi
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
 function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small><a class="footer-maker" href="https://www.linkedin.com/in/weng-fung/" target="_blank" rel="noopener noreferrer">App made by Weng, ICU RN and Software Engineer</a></footer>';}
-function pwa_controls():string{return '<section id="pwa-actions" class="pwa-actions" aria-label="App installation" hidden><span class="pwa-actions-label">App</span><button type="button" id="pwa-install" class="pwa-action" hidden>Install</button><button type="button" id="pwa-uninstall" class="pwa-action" hidden>Uninstall</button><span id="pwa-status" class="sr-only" role="status" aria-live="polite"></span></section><dialog id="pwa-install-help" class="pwa-dialog" aria-labelledby="pwa-install-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-install-help-title">Install this app</h2><p>Use your browser\'s <strong>Install app</strong> or <strong>Add to Home Screen</strong> command to add this viewer to this device.</p><p class="muted tiny">Install does not create an offline copy. Use Sync all to this device for that separate, private action.</p></dialog><dialog id="pwa-uninstall-confirm" class="pwa-dialog" aria-labelledby="pwa-uninstall-confirm-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-uninstall-confirm-title">Uninstall this app?</h2><p>This removes the app worker and all local offline copies, including pending changes, from this browser. Server records are not changed.</p><p class="muted tiny">Your browser may also require you to remove the app icon from its app list or home screen.</p><div class="row"><button type="button" id="pwa-uninstall-confirm-button" class="danger">Uninstall</button><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Cancel</button></div></dialog>';}
+function pwa_controls():string{return '<section id="pwa-actions" class="pwa-actions" data-app-name="'.h(APP_NAME).'" aria-label="App installation" hidden><span class="pwa-actions-label">App</span><button type="button" id="pwa-install" class="pwa-action" hidden>Install/Open</button><button type="button" id="pwa-open" class="pwa-action" hidden>Open</button><button type="button" id="pwa-uninstall" class="pwa-action" hidden>Uninstall</button><span id="pwa-status" class="sr-only" role="status" aria-live="polite"></span></section><dialog id="pwa-install-help" class="pwa-dialog" aria-labelledby="pwa-install-help-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-install-help-title">Install or open this app</h2><p id="pwa-install-help-copy"></p><p class="muted tiny">Installing the app does not create an offline patient copy. Use Sync all to this device for that separate, private action.</p><div class="row"><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Close</button></div></dialog><dialog id="pwa-uninstall-confirm" class="pwa-dialog" aria-labelledby="pwa-uninstall-confirm-title"><button type="button" class="close" onclick="this.closest(\'dialog\').close()" aria-label="Close">×</button><h2 id="pwa-uninstall-confirm-title">Remove this app</h2><p id="pwa-uninstall-copy"></p><p class="muted tiny">Removing the app icon and clearing this viewer\'s offline patient copy are separate actions. Use Clear device copy if you also want to remove locally stored records and photos.</p><div class="row"><button type="button" id="pwa-uninstall-confirm-button" class="ghost">I removed it</button><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Close</button></div></dialog>';}
 function first_run_page(string $setupCsrf):void{?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Set up · <?=APP_NAME?></title><style><?=css()?></style></head><body><main class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">First run</p><h1>Start with a sample patient pack</h1><p class="muted">No records or browser storage have been created yet. Create a local sample pack to explore the viewer.</p><form method="post"><input type="hidden" name="op" value="create_sample_pack"><input type="hidden" name="setup_csrf" value="<?=h($setupCsrf)?>"><button type="submit">Create sample patient pack</button></form><p class="muted tiny">This creates the local <code>storage/</code> folder and the demo sign-in account on this machine.</p></section></main><?=app_footer()?></body></html><?php exit;}
 function sync_count(array $d):int{$n=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)$n+=count($u['photos']);return $n;}
@@ -1083,10 +1083,10 @@ function css():string{return <<<'CSS'
 .patient-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.patient-picker .patient-card{width:100%;max-width:none}
 .iconbtn{width:28px;height:28px;min-height:28px;padding:0;font-size:1.05rem;line-height:1}
 footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:750}footer small{display:block;margin-top:2px;font-size:.72rem}.footer-maker{display:block;margin-top:8px;color:var(--brand);font-size:.72rem;font-weight:750;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}.footer-maker:hover{color:var(--ink)}
-.sync-utility-tray{display:flex;align-items:center;gap:8px;min-height:38px;margin-top:9px;padding:5px 0;border-top:1px solid #c9d9d6}.sync-utility-tray::before{content:'DEVICE';flex:none;color:#68807c;font-size:.62rem;font-weight:850;letter-spacing:.08em}.sync-utility-tray .sync-status{display:inline-flex;align-items:center;margin:0;padding:.25rem .55rem;cursor:pointer;border:0;font-size:.7rem}.sync-utility-tray .sync-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
-.pwa-actions{display:flex;align-items:center;justify-content:center;gap:8px;margin:-14px auto 18px;color:var(--muted);font-size:.72rem}.pwa-actions[hidden]{display:none}.pwa-actions-label{font-weight:800;letter-spacing:.06em;text-transform:uppercase}.pwa-action{min-height:28px;padding:.22rem .5rem;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.pwa-action:hover{background:#e8f1ef;color:var(--brand);filter:none}.pwa-action:focus-visible{outline-offset:1px}.pwa-dialog{width:min(430px,calc(100% - 28px));padding:22px 24px}.pwa-dialog h2{font-size:1.25rem}.pwa-dialog p{margin:.6rem 0 0;color:var(--ink);line-height:1.5}.pwa-dialog .muted{color:var(--muted)}.pwa-dialog .row{margin-top:18px}.pwa-dialog .danger{background:var(--danger);color:#fff}
-.sync-utility-tray .pwa-actions{justify-content:flex-start;gap:5px;margin:0}.sync-utility-tray .pwa-actions-label{font-size:.62rem}.sync-utility-tray .pwa-action{min-height:26px;padding:.18rem .4rem}
-.sync-utility-tray:has(.sync-status) .pwa-actions:not([hidden]){min-height:22px;padding-left:9px;border-left:1px solid #b8cbc6}
+.sync-utility-tray{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:4px;min-height:38px;margin-top:9px;padding:5px 0;border-top:1px solid #c9d9d6}.sync-utility-tray::before{content:'DEVICE';order:2;flex:none;color:#68807c;font-size:.62rem;font-weight:850;letter-spacing:.08em}.sync-utility-tray .sync-status{order:3;display:inline-flex;align-items:center;margin:0;padding:.25rem .55rem;cursor:pointer;border:0;font-size:.7rem}.sync-utility-tray .sync-status:hover{filter:brightness(.96)}.network-info{max-width:420px}.network-info p{color:var(--muted);line-height:1.55}.network-info strong{color:var(--ink)}
+.pwa-actions{display:flex;align-items:center;justify-content:center;gap:8px;margin:-14px auto 18px;color:var(--muted);font-size:.72rem}.pwa-actions[hidden]{display:none}.pwa-actions-label{font-weight:800;letter-spacing:.06em;text-transform:uppercase}.pwa-action{min-height:28px;padding:.22rem .5rem;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.pwa-action:hover{background:#e8f1ef;color:var(--brand);filter:none}.pwa-action:focus-visible{outline-offset:1px}.pwa-dialog{width:min(430px,calc(100% - 28px));padding:22px 24px}.pwa-dialog h2{font-size:1.25rem}.pwa-dialog p{margin:.6rem 0 0;color:var(--ink);line-height:1.5}.pwa-dialog .muted{color:var(--muted)}.pwa-dialog .row{margin-top:18px}.pwa-dialog .danger{background:var(--danger);color:#fff}.pwa-spotlight{position:relative;display:inline}.pwa-spotlight-trigger{display:inline;min-height:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--brand);font:inherit;font-weight:750;line-height:inherit;vertical-align:baseline;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}.pwa-spotlight-trigger:hover{background:transparent;color:var(--ink);filter:none}.pwa-spotlight-trigger:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.pwa-spotlight-popover{position:absolute;z-index:2;left:50%;bottom:calc(100% + 8px);width:max-content;max-width:min(260px,calc(100vw - 56px));padding:9px 11px;border:1px solid #a9c8c1;border-radius:9px;background:#f7fbfa;color:var(--ink);font-size:.76rem;line-height:1.45;text-align:left;transform:translateX(-50%);box-shadow:0 10px 24px rgba(22,50,56,.16)}.pwa-spotlight-popover[hidden]{display:none}.pwa-spotlight-popover::after{content:'';position:absolute;top:100%;left:50%;border:6px solid transparent;border-top-color:#a9c8c1;transform:translateX(-50%)}.pwa-spotlight-popover kbd{display:inline-block;padding:.08rem .3rem;border:1px solid #aec3bf;border-bottom-width:2px;border-radius:4px;background:#fff;color:var(--ink);font:700 .7rem/1.25 ui-monospace,SFMono-Regular,monospace}
+.sync-utility-tray .pwa-actions{order:1;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-start;gap:5px;min-width:0;margin:0}.sync-utility-tray .pwa-actions-label{font-size:.62rem}.sync-utility-tray .pwa-action{min-height:26px;padding:.18rem .4rem}
+.sync-utility-tray .pwa-actions:not([hidden]){min-height:22px}
 .assess-dim-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:-2px}.assess-dim-title{font-size:.72rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}.assess-unit-toggle{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:#fff}.assess-unit-btn{min-height:26px;padding:.2rem .45rem;border-radius:6px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:800}.assess-unit-btn:hover{background:#edf5f2;color:var(--brand);filter:none}.assess-unit-btn.is-selected{background:var(--brand);color:#fff}
 .sync-card-frame{position:relative;margin-top:18px}.sync-card-frame .sync-card{margin-top:0}.sync-clear{position:absolute;top:7px;right:7px;z-index:1;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand2);font-size:1.3rem;font-weight:500;line-height:1}.sync-clear:hover{background:#d5e6e9;filter:none}
 .sync-utility-tray+.sync-card-frame{margin-top:8px}
@@ -1493,42 +1493,102 @@ async function metaPut(k,v){const d=await db();return new Promise((ok,no)=>{cons
 async function metaGet(k){const d=await db();return new Promise((ok,no)=>{const r=d.transaction('meta').objectStore('meta').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 async function describeOfflineCopy(){if(!network||navigator.onLine)return;const copy=await metaGet(PATIENT_ID).catch(()=>null);if(copy?.complete)network.textContent='Offline · copy from '+new Date(copy.at).toLocaleString()}
 addEventListener('offline',describeOfflineCopy);describeOfflineCopy();
-const pwaActions=document.getElementById('pwa-actions'),pwaInstall=document.getElementById('pwa-install'),pwaUninstall=document.getElementById('pwa-uninstall'),pwaStatus=document.getElementById('pwa-status'),pwaInstallHelp=document.getElementById('pwa-install-help'),pwaUninstallConfirm=document.getElementById('pwa-uninstall-confirm'),pwaUninstallConfirmButton=document.getElementById('pwa-uninstall-confirm-button');
-let deferredInstallPrompt=null;
-const pwaStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-const pwaIos=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+const pwaActions=document.getElementById('pwa-actions'),pwaInstall=document.getElementById('pwa-install'),pwaOpen=document.getElementById('pwa-open'),pwaUninstall=document.getElementById('pwa-uninstall'),pwaStatus=document.getElementById('pwa-status'),pwaInstallHelp=document.getElementById('pwa-install-help'),pwaInstallHelpTitle=document.getElementById('pwa-install-help-title'),pwaInstallHelpCopy=document.getElementById('pwa-install-help-copy'),pwaUninstallConfirm=document.getElementById('pwa-uninstall-confirm'),pwaUninstallCopy=document.getElementById('pwa-uninstall-copy'),pwaUninstallConfirmButton=document.getElementById('pwa-uninstall-confirm-button');
+let deferredInstallPrompt=null,pwaInstallation='unknown',pwaDetectionRun=0;
+const pwaStandalone=()=>['standalone','minimal-ui','window-controls-overlay'].some(mode=>matchMedia(`(display-mode: ${mode})`).matches)||navigator.standalone===true;
+const pwaUserAgent=navigator.userAgent,pwaPlatform=navigator.userAgentData?.platform||navigator.platform||'';
+const pwaAppName=pwaActions?.dataset.appName||'this app';
+const pwaAppleMobile=/iPad|iPhone|iPod/.test(pwaUserAgent)||(pwaPlatform==='MacIntel'&&navigator.maxTouchPoints>1);
+const pwaMac=!pwaAppleMobile&&(/Mac/.test(pwaPlatform)||/Macintosh/.test(pwaUserAgent));
+const pwaAndroid=/Android/.test(pwaUserAgent),pwaWindows=/Windows|Win32|Win64/.test(pwaPlatform+' '+pwaUserAgent);
+const pwaSafari=/Safari/.test(pwaUserAgent)&&!/Chrome|Chromium|CriOS|FxiOS|EdgiOS|EdgA|Edg|OPR|Android/.test(pwaUserAgent);
+const pwaChromium=/Chrome|Chromium|CriOS|EdgiOS|EdgA|Edg|OPR/.test(pwaUserAgent);
 function renderPwaControls(){
-  if(!pwaActions||!pwaInstall||!pwaUninstall)return;
-  const installed=pwaStandalone();
-  const canInstall=!installed&&(Boolean(deferredInstallPrompt)||pwaIos);
-  pwaActions.hidden=!canInstall&&!installed;
-  pwaInstall.hidden=!canInstall;
-  pwaUninstall.hidden=!installed;
+  if(!pwaActions||!pwaInstall||!pwaOpen||!pwaUninstall)return;
+  const state=pwaStandalone()?'running':pwaInstallation;
+  pwaActions.hidden=false;
+  pwaInstall.hidden=state!=='unknown';
+  pwaOpen.hidden=state!=='detected';
+  pwaUninstall.hidden=state==='unknown';
 }
-addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;renderPwaControls()});
-addEventListener('appinstalled',()=>{deferredInstallPrompt=null;pwaStatus&&(pwaStatus.textContent='App installed.');renderPwaControls()});
-pwaInstall?.addEventListener('click',async()=>{
-  if(!deferredInstallPrompt){pwaInstallHelp?.showModal();return;}
-  deferredInstallPrompt.prompt();
-  const choice=await deferredInstallPrompt.userChoice;
-  pwaStatus&&(pwaStatus.textContent=choice.outcome==='accepted'?'Install started.':'Install dismissed.');
-  deferredInstallPrompt=null;renderPwaControls();
-});
-pwaUninstall?.addEventListener('click',()=>pwaUninstallConfirm?.showModal());
-pwaUninstallConfirmButton?.addEventListener('click',async()=>{
-  pwaUninstallConfirmButton.disabled=true;
+async function detectPwaInstallation(){
+  const run=++pwaDetectionRun;
+  if(pwaStandalone()){pwaInstallation='running';renderPwaControls();return}
+  if(typeof navigator.getInstalledRelatedApps!=='function'){pwaInstallation='unknown';renderPwaControls();return}
   try{
-    await Promise.all((await caches.keys()).filter(key=>key.startsWith('swcv-')).map(key=>caches.delete(key)));
-    const database=await db();
-    await new Promise((ok,no)=>{const transaction=database.transaction(['meta','outbox'],'readwrite');transaction.objectStore('meta').clear();transaction.objectStore('outbox').clear();transaction.oncomplete=ok;transaction.onerror=()=>no(transaction.error)});
-    database.close();
-    if('serviceWorker'in navigator){const path=new URL(location.href).pathname;const registrations=await navigator.serviceWorker.getRegistrations();await Promise.all(registrations.filter(registration=>[registration.active,registration.waiting,registration.installing].some(worker=>worker&&new URL(worker.scriptURL).pathname===path&&new URL(worker.scriptURL).searchParams.get('action')==='service-worker')).map(registration=>registration.unregister()))}
-    pwaUninstallConfirm?.close();
-    if(pwaActions)pwaActions.hidden=true;
-    pwaStatus&&(pwaStatus.textContent='App data was removed from this browser.');
-  }catch(error){pwaStatus&&(pwaStatus.textContent='Could not remove app data: '+error.message)}finally{pwaUninstallConfirmButton.disabled=false}
+    const apps=await navigator.getInstalledRelatedApps();
+    if(run!==pwaDetectionRun)return;
+    pwaInstallation=apps.some(app=>app.platform==='webapp')?'detected':'unknown';
+  }catch{if(run!==pwaDetectionRun)return;pwaInstallation='unknown'}
+  if(pwaInstallation==='detected')deferredInstallPrompt=null;
+  renderPwaControls();
+}
+function pwaHelpCopy(kind){
+  if(kind==='open'){
+    if(pwaAppleMobile)return 'Open the installed app using its Home Screen icon. This browser tab cannot force the installed app to launch.';
+    if(pwaMac&&pwaSafari)return 'Open the installed app from the Dock, your Applications folder, or Spotlight. Safari does not let this page launch it directly.';
+    if(pwaMac)return 'Open the installed app from the Dock, Applications, Spotlight, or your browser’s app list. This page cannot force the installed app to launch.';
+    if(pwaAndroid)return 'Open the installed app from your Home Screen or app drawer. This browser tab cannot force it to launch.';
+    if(pwaWindows)return 'Open the installed app from the Start menu, taskbar, desktop, or your browser’s app list. This page cannot force it to launch.';
+    return 'Open the installed app from your device’s app launcher or your browser’s app list. This page cannot force it to launch.';
+  }
+  if(pwaAppleMobile&&pwaSafari)return 'If you already installed this app, open it using its Home Screen icon. To install it, tap Share → Add to Home Screen.';
+  if(pwaAppleMobile)return 'If you already installed this app, open it using its Home Screen icon. To install it, open this page in Safari, then tap Share → Add to Home Screen.';
+  if(pwaMac&&pwaSafari)return 'If you already installed this app, open it from the Dock, Applications, or Spotlight. To install it in Safari, choose File → Add to Dock.';
+  if(pwaMac&&pwaChromium)return 'If you already installed this app, open it from the Dock, Applications, Spotlight, or your browser’s app list. To install it, use the install icon in the address bar or the browser menu.';
+  if(pwaAndroid)return 'If you already installed this app, open it from your Home Screen or app drawer. To install it, use your browser’s Install app or Add to Home screen command.';
+  if(pwaWindows)return 'If you already installed this app, open it from the Start menu or your browser’s app list. To install it, use the install icon in the address bar or the browser menu.';
+  return 'If you already installed this app, open it from your device’s app launcher. To install it, use your browser’s Install app or Add to Home Screen command.';
+}
+function pwaRemovalCopy(){
+  if(pwaAppleMobile)return 'Touch and hold the app’s Home Screen icon, tap Remove App, then confirm removal.';
+  if(pwaMac&&pwaSafari)return 'In Finder, open your home folder, open Applications, then drag this web app to the Bin.';
+  if(pwaChromium&&!pwaAndroid)return 'Open the installed app, choose its More menu, then Uninstall Wound Viewer and Remove. You can also manage it from chrome://apps.';
+  if(pwaAndroid)return 'Touch and hold the app icon, open App info if shown, then choose Uninstall or Remove.';
+  if(pwaWindows)return 'Open the installed app and use its app menu to uninstall it, or remove it from Windows Settings → Apps.';
+  return 'Remove the app using your device’s app launcher or your browser’s app-management screen.';
+}
+function renderPwaHelpCopy(copy){
+  if(!pwaInstallHelpCopy)return;
+  const marker='Spotlight',index=copy.indexOf(marker);
+  pwaInstallHelpCopy.replaceChildren();
+  if(index<0){pwaInstallHelpCopy.textContent=copy;return}
+  pwaInstallHelpCopy.append(document.createTextNode(copy.slice(0,index)));
+  const wrap=document.createElement('span'),trigger=document.createElement('button'),popover=document.createElement('span');
+  wrap.className='pwa-spotlight';trigger.type='button';trigger.className='pwa-spotlight-trigger';trigger.textContent=marker;trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-haspopup','true');trigger.setAttribute('aria-controls','pwa-spotlight-popover');trigger.setAttribute('aria-label','Explain how to open Spotlight');
+  popover.id='pwa-spotlight-popover';popover.className='pwa-spotlight-popover';popover.hidden=true;popover.setAttribute('role','tooltip');
+  const command=document.createElement('kbd'),space=document.createElement('kbd'),name=document.createElement('strong');command.textContent='Cmd';space.textContent='Space';name.textContent=pwaAppName;
+  popover.append('Press ',command,' + ',space,', then search for “',name,'”.');
+  const close=()=>{popover.hidden=true;trigger.setAttribute('aria-expanded','false')};
+  trigger.addEventListener('click',()=>{const opening=popover.hidden;popover.hidden=!opening;trigger.setAttribute('aria-expanded',String(opening))});
+  trigger.addEventListener('keydown',event=>{if(event.key==='Escape'&&!popover.hidden){event.preventDefault();event.stopPropagation();close();trigger.focus()}});
+  wrap.append(trigger,popover);pwaInstallHelpCopy.append(wrap,document.createTextNode(copy.slice(index+marker.length)));
+}
+function showPwaHelp(kind){
+  if(!pwaInstallHelp||!pwaInstallHelpCopy)return;
+  if(pwaInstallHelpTitle)pwaInstallHelpTitle.textContent=kind==='open'?'Open the installed app':'Install or open this app';
+  renderPwaHelpCopy(pwaHelpCopy(kind));
+  pwaInstallHelp.showModal();
+}
+pwaInstallHelp?.addEventListener('click',event=>{const wrap=event.target.closest?.('.pwa-spotlight');if(wrap)return;const trigger=pwaInstallHelp.querySelector('.pwa-spotlight-trigger'),popover=pwaInstallHelp.querySelector('.pwa-spotlight-popover');if(trigger&&popover){popover.hidden=true;trigger.setAttribute('aria-expanded','false')}});
+addEventListener('beforeinstallprompt',event=>{event.preventDefault();if(pwaStandalone()||pwaInstallation==='detected'){deferredInstallPrompt=null;return}deferredInstallPrompt=event;renderPwaControls()});
+addEventListener('appinstalled',()=>{++pwaDetectionRun;deferredInstallPrompt=null;pwaInstallation=pwaStandalone()?'running':'detected';pwaStatus&&(pwaStatus.textContent='App installed.');renderPwaControls()});
+pwaInstall?.addEventListener('click',async()=>{
+  if(pwaInstallation==='unknown'&&deferredInstallPrompt){
+    const prompt=deferredInstallPrompt;deferredInstallPrompt=null;await prompt.prompt();const choice=await prompt.userChoice;
+    pwaStatus&&(pwaStatus.textContent=choice.outcome==='accepted'?'Installation accepted.':'Installation dismissed.');renderPwaControls();return;
+  }
+  showPwaHelp('install');
 });
-renderPwaControls();
+pwaOpen?.addEventListener('click',()=>showPwaHelp('open'));
+pwaUninstall?.addEventListener('click',()=>{if(pwaUninstallCopy)pwaUninstallCopy.textContent=pwaRemovalCopy();if(pwaUninstallConfirmButton)pwaUninstallConfirmButton.textContent=pwaStandalone()?'Close after removing':'I removed it';pwaUninstallConfirm?.showModal()});
+pwaUninstallConfirmButton?.addEventListener('click',()=>{
+  pwaUninstallConfirm?.close();
+  if(pwaStandalone()){pwaStatus&&(pwaStatus.textContent='Close this installed app after removing it from the device.');return}
+  ++pwaDetectionRun;deferredInstallPrompt=null;pwaInstallation='unknown';pwaStatus&&(pwaStatus.textContent='Installation status is unknown.');renderPwaControls();
+});
+addEventListener('visibilitychange',()=>{if(!document.hidden)detectPwaInstallation()});
+renderPwaControls();detectPwaInstallation();
 const syncBtn=document.getElementById('syncButton'),syncInfo=document.getElementById('syncInfo');
 function syncUtilityTray(){
   if(!syncBtn||!syncInfo)return null;
