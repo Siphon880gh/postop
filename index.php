@@ -61,7 +61,7 @@ function seed(string $dataFile, string $patientDir): void {
     $priorId='photo-seeded-prior-date';$priorName='01-shot-'.$priorId.'.svg';$priorDir="$patientDir/libraries/left-heel/wounds/lateral-incision/$partial";
     if (!is_dir($priorDir)) mkdir($priorDir,0770,true); file_put_contents("$priorDir/$priorName",placeholder('IMG-4D2A71'));
     $priorPhotos=[['id'=>$priorId,'angle'=>'Progress check','caption'=>'Seeded prior-day reference image','created_at'=>now(),'sort_order'=>1,'filename'=>$priorName,'mime'=>'image/svg+xml','bytes'=>filesize("$priorDir/$priorName")]];
-    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>3,'revision'=>1,'libraries'=>[
+    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>4,'revision'=>1,'libraries'=>[
       ['id'=>'left-heel','name'=>'Left Heel Post-op Recovery','type'=>'Postoperative Wound','custom_type'=>'','start_date'=>$start->format('Y-m-d'),'description'=>'Track recovery milestones and dressing observations.','revision'=>1,'notes'=>[['id'=>'note-lib-1','text'=>'Review progress at each dressing change.','created_at'=>now()]],'day_notes'=>[$partial=>[['id'=>'note-day-1','text'=>'Patient reported improved comfort.','created_at'=>now()]]],'wounds'=>[
         ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[],'day_notes'=>[$partial=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]]],'updates'=>[$partial=>['note'=>'Dressing changed; prior progress image available.','photos'=>$priorPhotos],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
         ['id'=>'donor-site','name'=>'Donor site','location'=>'Posterior heel','active'=>true,'notes'=>[],'day_notes'=>[],'updates'=>[$complete=>['note'=>'Clean and dry.','photos'=>[]]]]
@@ -69,6 +69,7 @@ function seed(string $dataFile, string $patientDir): void {
       ['id'=>'mole-monitor','name'=>'Mole Monitoring','type'=>'Mole Monitoring','custom_type'=>'','start_date'=>$today->modify('-20 days')->format('Y-m-d'),'description'=>'Demo longitudinal comparison library.','revision'=>1,'notes'=>[],'day_notes'=>[],'wounds'=>[['id'=>'medial-site','name'=>'Medial site','location'=>'Left ankle','active'=>true,'notes'=>[],'day_notes'=>[],'updates'=>[]]]]
     ]];
     seed_demo_photo_dates($data,$patientDir);
+    seed_demo_prefixed_notes($data,$patientDir);
     atomic_write($dataFile,$data);
 }
 function seed_demo_photo_dates(array &$data,string $patientDir): bool {
@@ -110,11 +111,59 @@ function seed_demo_photo_dates(array &$data,string $patientDir): bool {
     unset($library);
     return $changed;
 }
+function seed_demo_prefixed_notes(array &$data,string $patientDir): bool {
+    if((string)($data['patient']['id']??'')!==DEFAULT_PATIENT_ID)return false;
+    $today=new DateTimeImmutable('today');
+    $entries=[
+        ['offset'=>-11,'wound'=>'lateral-incision','id'=>'note-concern-1','text'=>'CONCERN: New redness along the proximal incision edge.','photo'=>['id'=>'photo-seeded-concern-1','serial'=>'IMG-C0NC01','angle'=>'Concern check','caption'=>'Reference image for a concern note.']],
+        ['offset'=>-9,'wound'=>'lateral-incision','id'=>'note-change-1','text'=>'CHANGE: Wound edges are closer together than on the prior photo day.','photo'=>['id'=>'photo-seeded-change-1','serial'=>'IMG-C4A001','angle'=>'Change check','caption'=>'Reference image for a change-in-wound note.']],
+        ['offset'=>-7,'wound'=>'lateral-incision','id'=>'note-concern-2','text'=>'CONCERN: Increased tenderness reported when the dressing was removed.','photo'=>['id'=>'photo-seeded-concern-2','serial'=>'IMG-C0NC02','angle'=>'Concern check','caption'=>'Reference image for a concern note.']],
+        ['offset'=>-5,'wound'=>'lateral-incision','id'=>'note-change-2','text'=>'CHANGE: The wound bed is smaller, with less drainage and drier surrounding skin than the last dressing change.','photo'=>['id'=>'photo-seeded-change-2','serial'=>'IMG-C4A002','angle'=>'Change check','caption'=>'Reference image for a change-in-wound note.']],
+        ['offset'=>-5,'wound'=>'donor-site','id'=>'note-change-3','text'=>'CHANGE: Donor-site wound is smaller and less moist than the earlier photo.','photo'=>['id'=>'photo-seeded-change-3','serial'=>'IMG-C4A003','angle'=>'Posterior','caption'=>'Reference image for a change-in-wound note.']],
+        ['offset'=>-3,'wound'=>'lateral-incision','id'=>'note-concern-3','text'=>'CONCERN: A small open area remains at the distal tip of the incision.','photo'=>['id'=>'photo-seeded-concern-3','serial'=>'IMG-C0NC03','angle'=>'Concern check','caption'=>'Reference image for a concern note.']],
+    ];
+    $changed=false;
+    foreach($data['libraries'] as &$library){
+        if(($library['id']??'')!=='left-heel')continue;
+        foreach($entries as $entry){
+            $date=$today->modify($entry['offset'].' days')->format('Y-m-d');
+            if($date<(string)($library['start_date']??''))continue;
+            foreach($library['wounds'] as &$wound){
+                if(($wound['id']??'')!==$entry['wound'])continue;
+                $wound['updates'][$date]??=['photos'=>[]];
+                if(empty($wound['updates'][$date]['photos'])){
+                    $photo=$entry['photo'];
+                    $wound['updates'][$date]['photos'][]=seeded_demo_photo($patientDir,$library['id'],$wound['id'],$date,$photo['id'],$photo['serial'],$photo['angle'],$photo['caption'],1);
+                    $changed=true;
+                }
+                if(!is_array($wound['day_notes']??null))$wound['day_notes']=[];
+                $wound['day_notes'][$date]??=[];
+                $exists=false;
+                foreach($wound['day_notes'][$date] as $note){
+                    if(($note['id']??'')===$entry['id']||trim((string)($note['text']??''))===$entry['text']){$exists=true;break;}
+                }
+                if(!$exists){
+                    $wound['day_notes'][$date][]=['id'=>$entry['id'],'text'=>$entry['text'],'created_at'=>now()];
+                    $changed=true;
+                }
+                break;
+            }
+            unset($wound);
+        }
+        if($changed)$library['revision']=($library['revision']??0)+1;
+        break;
+    }
+    unset($library);
+    return $changed;
+}
 function ensure_demo_photo_dates(string $dataFile,string $patientDir): void {
     $raw=@file_get_contents($dataFile);$data=$raw===false?null:json_decode($raw,true);
     if(!is_array($data)||(string)($data['patient']['id']??'')!==DEFAULT_PATIENT_ID)return;
-    if(!seed_demo_photo_dates($data,$patientDir)&&(int)($data['seed_version']??1)>=3)return;
-    $data['revision']=($data['revision']??0)+1;$data['seed_version']=3;atomic_write($dataFile,$data);
+    $version=(int)($data['seed_version']??1);
+    $changed=seed_demo_photo_dates($data,$patientDir);
+    if($version<4&&seed_demo_prefixed_notes($data,$patientDir))$changed=true;
+    if(!$changed&&$version>=4)return;
+    $data['revision']=($data['revision']??0)+1;$data['seed_version']=4;atomic_write($dataFile,$data);
 }
 function pipeline_in_dir(): string { return __DIR__.'/pipeline-in'; }
 function pipeline_list_dirs(string $path): array {
