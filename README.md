@@ -62,8 +62,11 @@ one workspace. Empty days stay blank until an update is added.
 ## Run
 
 ```bash
-php -S localhost:8000
+php -d upload_max_filesize=15M -d post_max_size=16M -S localhost:8000
 ```
+
+The upload flags match the app's 15 MB photo limit; PHP's default is 2 MB.
+On PHP-FPM hosts the bundled `.user.ini` sets the same limits.
 
 Open <http://localhost:8000>, then sign in with the visible demo credentials:
 
