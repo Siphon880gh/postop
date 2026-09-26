@@ -631,6 +631,48 @@ function install_patient_avatar(string $patientDir,array &$data): bool {
     }
     return $changed;
 }
+function text_length(string $value): int {
+    return function_exists('mb_strlen')?mb_strlen($value,'UTF-8'):strlen($value);
+}
+function save_patient_details(): void {
+    global $patientDir;
+    $d=load_data();
+    if(isset($_POST['expected_revision'])&&(int)$_POST['expected_revision']!==(int)$d['revision'])fail('Conflict: the server record changed. Reload the server version or review and retry the pending change.',409);
+    $p=&$d['patient'];
+    $name=trim(preg_replace('/\s+/u',' ',(string)($_POST['name']??''))??'');
+    if($name===''||text_length($name)>80)fail('Enter a patient name of 80 characters or fewer.');
+    $account=trim((string)($_POST['account_number']??''));
+    if(text_length($account)>40)fail('Account number must be 40 characters or fewer.');
+    $ageRaw=trim((string)($_POST['age']??''));
+    if(!preg_match('/^\d{1,3}$/',$ageRaw)||(int)$ageRaw>130)fail('Enter an age from 0 to 130.');
+    $height=trim((string)($_POST['height']??''));
+    if(text_length($height)>40)fail('Height must be 40 characters or fewer.');
+    $gender=trim((string)($_POST['gender']??''));
+    $allowed=['Female','Male'];
+    $previousGender=(string)($p['gender']??'');
+    if($previousGender!==''&&!in_array($previousGender,$allowed,true))$allowed[]=$previousGender;
+    if(!in_array($gender,$allowed,true))fail('Choose a gender.');
+    $diagnosis=trim((string)($_POST['diagnosis']??''));
+    if(text_length($diagnosis)>400)fail('Diagnosis must be 400 characters or fewer.');
+    $rawWeight=trim((string)($_POST['weight']??''));
+    if(!preg_match('/^\d{1,4}(\.\d{1,2})?$/',$rawWeight))fail('Enter a body weight.');
+    $weight=(float)$rawWeight;
+    $unit=((string)($_POST['weight_unit']??'kg'))==='lb'?'lb':'kg';
+    if($unit==='lb')$weight=round($weight/2.2046226218,1);
+    if($weight<0.5||$weight>500)fail('Enter a body weight between 0.5 kg and 500 kg.');
+    $p['name']=$name;
+    $p['account_number']=$account;
+    $p['age']=(int)$ageRaw;
+    $p['height']=$height;
+    $p['gender']=$gender;
+    $p['diagnosis']=$diagnosis;
+    $p['weight_kg']=$weight;
+    save_data($d);
+    $_SESSION['flash']='Patient details saved.';
+    $return=(string)($_POST['return_to']??'');
+    if(!preg_match('/^index\.php(?:\?[^\r\n]*)?$/',$return))$return='index.php?patient='.rawurlencode(active_patient_id());
+    header('Location: '.$return,true,303);exit;
+}
 function ensure_avatar_assets(string $patientDir): void {
     publish_avatar_portraits();
     $dataFile=$patientDir.'/record.json';
@@ -848,6 +890,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $_SESSION['flash']=$imported.' record imported.';
         header('Location: index.php');exit;
     }
+    if($op==='patient_save')save_patient_details();
     $d=load_data(); if(isset($_POST['expected_revision'])&&(int)$_POST['expected_revision']!==(int)$d['revision'])fail('Conflict: the server record changed. Reload the server version or review and retry the pending change.',409); $libId=(string)($_POST['library_id']??''); if($libId!==''&&!safe_id($libId))fail('Invalid library ID.');
     $redirect='index.php?patient='.active_patient_id();
     try {
@@ -920,7 +963,7 @@ if(!$authed): ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta
 $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$view=(($_GET['view']??'')==='gallery')?'gallery':'day';$galleryOrder=gallery_order();$selectedId=(string)($_GET['library']??($d['libraries'][0]['id']??''));$selected=null;foreach($d['libraries'] as $l)if($l['id']===$selectedId)$selected=$l;if($selected){$date=(string)($_GET['date']??'');if($date===''||$date<$selected['start_date']||$date>gmdate('Y-m-d'))$date=latest_relevant_date($selected);}else{$date=gmdate('Y-m-d');}
 ?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
 <?=account_modal($account,$csrf,current_page_url())?><?=edit_mode_bar()?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1></div></section><?=patient_picker(patient_records(),$csrf)?>
-<?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><div class="side-title-actions"><button type="button" class="ghost sidebar-toggle" id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar-body">Hide libraries</button><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button></div></div><div class="sidebar-body" id="sidebar-body"><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=h($patientId)?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></div></aside>
+<?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><?=patient_edit_dialog($profile,$csrf,(int)$d['revision'],current_page_url())?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><div class="side-title-actions"><button type="button" class="ghost sidebar-toggle" id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar-body">Hide libraries</button><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button></div></div><div class="sidebar-body" id="sidebar-body"><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=h($patientId)?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></div></aside>
 <section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><div id="day-notes-slot"><?=selected_day_notes_banner($selected,$date)?></div><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form></div></article>
 <?=view_switch($selected,$date,$view),timeline($selected,$date,$view)?>
 <p id="date-view-status" class="sr-only" aria-live="polite"></p><div id="date-view"><?=$view==='gallery'?gallery_view($selected,$date,$csrf,$galleryOrder):day_view($selected,$date,$csrf)?></div>
@@ -1025,7 +1068,24 @@ function patient_facts(array $p):string{
 }
 function patient_facts_compact(array $p):string{
     $age=(int)$p['age'];
-    return '<div class="patient-facts">'.avatar_markup($p,'avatar compact-avatar').'<span><strong>Account number</strong> '.h($p['account_number']).'</span><span><strong>Age</strong> '.$age.' year'.($age===1?'':'s').'</span>'.($p['height']!==''?'<span><strong>Height</strong> '.h($p['height']).'</span>':'').'<span><strong>Gender</strong> '.h($p['gender']).'</span><span class="patient-facts-weight"><strong>Body weight</strong> '.weight_control((float)$p['weight_kg']).'</span></div>';
+    return '<div class="patient-facts">'.avatar_markup($p,'avatar compact-avatar').'<span><strong>Account number</strong> '.h($p['account_number']).'</span><span><strong>Age</strong> '.$age.' year'.($age===1?'':'s').'</span>'.($p['height']!==''?'<span><strong>Height</strong> '.h($p['height']).'</span>':'').'<span><strong>Gender</strong> '.h($p['gender']).'</span><span class="patient-facts-weight"><strong>Body weight</strong> '.weight_control((float)$p['weight_kg']).'</span><button type="button" class="ghost patient-facts-edit" onclick="showModal(\'patient-edit\')">Edit</button></div>';
+}
+function patient_edit_dialog(array $p,string $csrf,int $revision,string $returnTo):string{
+    $kg=number_format((float)$p['weight_kg'],1,'.','');
+    $genders=['Female','Male'];
+    if(!in_array((string)$p['gender'],$genders,true))$genders[]=(string)$p['gender'];
+    $genderOpts='';
+    foreach($genders as $gender)$genderOpts.='<option'.($gender===(string)$p['gender']?' selected':'').'>'.h($gender).'</option>';
+    return dialog_start('patient-edit','Edit patient')
+        .'<form method="post"><input type="hidden" name="op" value="patient_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="patient" value="'.h($p['id']).'"><input type="hidden" name="expected_revision" value="'.h((string)$revision).'"><input type="hidden" name="return_to" value="'.h($returnTo).'">'
+        .'<label>Name<input name="name" value="'.h($p['name']).'" maxlength="80" required autocomplete="name"></label>'
+        .'<label>Account number<input name="account_number" value="'.h($p['account_number']).'" maxlength="40" autocomplete="off"></label>'
+        .'<label>Age<input name="age" type="number" min="0" max="130" step="1" inputmode="numeric" value="'.h((string)(int)$p['age']).'" required></label>'
+        .'<label>Height<input name="height" value="'.h($p['height']).'" maxlength="40" placeholder="For example: 5 ft 6 in"></label>'
+        .'<label>Gender<select name="gender" required>'.$genderOpts.'</select></label>'
+        .'<label>Body weight<span class="weight-editor" data-weight-editor><input name="weight" type="number" min="0.5" max="1102" step="0.1" inputmode="decimal" value="'.h($kg).'" required><input type="hidden" name="weight_unit" value="kg"><span class="unit-toggle" role="group" aria-label="Body weight unit"><button type="button" class="unit-btn" data-weight-unit="kg" aria-pressed="true">kg</button><button type="button" class="unit-btn" data-weight-unit="lb" aria-pressed="false">lb</button></span></span></label>'
+        .'<label>Diagnosis<textarea name="diagnosis" maxlength="400">'.h($p['diagnosis']).'</textarea></label>'
+        .'<div class="row"><button type="submit">Save patient</button><button type="button" class="ghost" onclick="this.closest(\'dialog\').close()">Cancel</button></div></form></dialog>';
 }
 function patient_records():array{
     global $root,$account;$records=[];$dir=$root.'/patients';
@@ -1451,8 +1511,8 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .app{padding-top:24px}.crumb{margin-bottom:14px;color:#6a7d80;font-size:.82rem;font-weight:700}.crumb strong{color:var(--ink)}
 .edit-mode-bar{border-color:#c9dcd7;background:linear-gradient(90deg,#f8fbfa,#fff 44%);box-shadow:var(--shadow-soft)}
 .patient-facts{margin-bottom:28px;padding:13px 16px;border-color:#c4d7d2;background:linear-gradient(180deg,#edf5f2,#e8f1ef);box-shadow:var(--shadow-inset)}
-.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}
-.patient-facts strong{color:#60777a}.patient-facts>span:not(:last-child){padding-right:3px}.weight-value{color:#173f43}
+.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}.patient-facts-edit{margin-left:auto;flex:none;align-self:center;min-height:36px;padding:.42rem .95rem}#patient-edit{width:min(640px,calc(100% - 28px))}.weight-editor{display:flex;align-items:center;gap:8px}.weight-editor input[name=weight]{flex:1;min-width:0}
+.patient-facts strong{color:#60777a}.weight-value{color:#173f43}
 .layout{align-items:start}.sidebar{padding:18px 16px;border:1px solid #c8dad6;border-radius:18px;background:linear-gradient(165deg,#edf6f3 0,#f8fbfa 56%,#edf4f5 100%);box-shadow:var(--shadow-inset),0 10px 26px rgba(22,50,56,.055)}
 .side-title{margin-bottom:12px;padding-bottom:13px;border-bottom:1px solid #c9d9d6}.side-title h2{margin:.18rem 0 0;font-size:1.25rem;line-height:1.2}.side-title .eyebrow{color:#51716d}
 .library-list{gap:6px}.library-item{position:relative;padding:12px 11px;border-color:transparent;background:rgba(255,255,255,.28);transition:transform .16s ease,box-shadow .16s ease,background .16s ease}.library-item:hover{background:rgba(255,255,255,.78);box-shadow:0 5px 13px rgba(22,50,56,.055)}
@@ -1552,6 +1612,20 @@ document.querySelectorAll('.weight-control').forEach(el=>{
     buttons.forEach(b=>b.setAttribute('aria-pressed',b.dataset.unit===unit?'true':'false'));
   }
   buttons.forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();paint(b.dataset.unit)}));
+});
+document.querySelectorAll('[data-weight-editor]').forEach(el=>{
+  const input=el.querySelector('input[name=weight]');
+  const unit=el.querySelector('input[name=weight_unit]');
+  const buttons=[...el.querySelectorAll('[data-weight-unit]')];
+  const factor=2.2046226218;
+  buttons.forEach(b=>b.addEventListener('click',()=>{
+    const next=b.dataset.weightUnit;
+    if(!input||!unit||unit.value===next)return;
+    const n=parseFloat(input.value);
+    if(Number.isFinite(n))input.value=(next==='lb'?n*factor:n/factor).toFixed(1);
+    unit.value=next;
+    buttons.forEach(btn=>btn.setAttribute('aria-pressed',btn.dataset.weightUnit===next?'true':'false'));
+  }));
 });
 const dimensionFactors={cm:1,mm:.1,in:2.54};
 function bindAssessFields(fieldset){
