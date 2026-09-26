@@ -631,6 +631,34 @@ function install_patient_avatar(string $patientDir,array &$data): bool {
     }
     return $changed;
 }
+function remove_replaced_avatar(string $patientDir, string $avatar): void {
+    if(is_generic_avatar($avatar))return;
+    $file=basename($avatar);
+    if(!preg_match('/^[A-Za-z0-9._-]+\.(svg|png|jpe?g|webp)$/',$file))return;
+    $path=$patientDir.'/'.$file;
+    $real=realpath($path);
+    $base=realpath($patientDir);
+    if(!$real||!$base||dirname($real)!==$base||!is_file($real))return;
+    unlink($real);
+}
+function apply_avatar_choice(string $patientDir, array &$patient, string $choice): void {
+    $previous=(string)($patient['avatar']??'');
+    if($choice==='keep')return;
+    if($choice!=='upload')fail('Choose a portrait option.');
+    if(!isset($_FILES['avatar'])||!is_array($_FILES['avatar']))fail('Choose a portrait to upload.');
+    $err=(int)($_FILES['avatar']['error']??UPLOAD_ERR_NO_FILE);
+    if($err===UPLOAD_ERR_NO_FILE)fail('Choose a portrait to upload.');
+    if($err!==UPLOAD_ERR_OK)fail('The portrait could not be uploaded.');
+    if((int)($_FILES['avatar']['size']??0)>MAX_UPLOAD)fail('Portrait exceeds the 15 MB limit.',413);
+    $tmp=(string)($_FILES['avatar']['tmp_name']??'');
+    $info=@getimagesize($tmp);
+    $types=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+    if(!$info||!isset($types[$info['mime']]))fail('Portrait must be a valid JPEG, PNG, or WebP image.');
+    $name='avatar-'.bin2hex(random_bytes(4)).'.'.$types[$info['mime']];
+    if(!move_uploaded_file($tmp,$patientDir.'/'.$name))fail('Could not store the portrait.',500);
+    $patient['avatar']=$name;
+    if($previous!==$name)remove_replaced_avatar($patientDir,$previous);
+}
 function text_length(string $value): int {
     return function_exists('mb_strlen')?mb_strlen($value,'UTF-8'):strlen($value);
 }
@@ -660,6 +688,9 @@ function save_patient_details(): void {
     $unit=((string)($_POST['weight_unit']??'kg'))==='lb'?'lb':'kg';
     if($unit==='lb')$weight=round($weight/2.2046226218,1);
     if($weight<0.5||$weight>500)fail('Enter a body weight between 0.5 kg and 500 kg.');
+    $choice=(string)($_POST['avatar_choice']??'keep');
+    if($choice!=='keep'&&$choice!=='upload')fail('Choose a portrait option.');
+    apply_avatar_choice($patientDir,$p,$choice);
     $p['name']=$name;
     $p['account_number']=$account;
     $p['age']=(int)$ageRaw;
@@ -1043,8 +1074,8 @@ function photo_heading(array $p,int $i):string{
 function pencil_icon():string{return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';}
 function expand_icon():string{return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';}
 function avatar_markup(array $p,string $class='avatar'):string{
-    $src='index.php?action=avatar&patient='.rawurlencode((string)$p['id']);
-    return '<span class="'.$class.'"><img src="'.$src.'" alt="Portrait placeholder for '.h($p['name']).'"></span>';
+    $src='index.php?action=avatar&patient='.rawurlencode((string)$p['id']).'&file='.rawurlencode((string)$p['avatar']);
+    return '<span class="'.$class.'"><img src="'.$src.'" alt="Portrait of '.h($p['name']).'"></span>';
 }
 function notes_trigger(string $id,int $count,string $kind='Notes'):string{
     if($id==='notes-library'&&$kind==='Notes')$kind='Library notes';
@@ -1077,7 +1108,8 @@ function patient_edit_dialog(array $p,string $csrf,int $revision,string $returnT
     $genderOpts='';
     foreach($genders as $gender)$genderOpts.='<option'.($gender===(string)$p['gender']?' selected':'').'>'.h($gender).'</option>';
     return dialog_start('patient-edit','Edit patient')
-        .'<form method="post"><input type="hidden" name="op" value="patient_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="patient" value="'.h($p['id']).'"><input type="hidden" name="expected_revision" value="'.h((string)$revision).'"><input type="hidden" name="return_to" value="'.h($returnTo).'">'
+        .'<form method="post" enctype="multipart/form-data"><input type="hidden" name="op" value="patient_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="patient" value="'.h($p['id']).'"><input type="hidden" name="expected_revision" value="'.h((string)$revision).'"><input type="hidden" name="return_to" value="'.h($returnTo).'">'
+        .'<div class="avatar-editor" data-avatar-editor><div class="avatar-choices"><p class="avatar-choices-label">Portrait</p><label class="check avatar-keep"><input type="radio" name="avatar_choice" value="keep" checked>'.avatar_markup($p,'avatar compact-avatar').'<span>Keep current portrait</span></label><label class="check"><input type="radio" name="avatar_choice" value="upload"> Upload a portrait</label><label>JPEG, PNG, or WebP, up to 15 MB<input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"></label></div></div>'
         .'<label>Name<input name="name" value="'.h($p['name']).'" maxlength="80" required autocomplete="name"></label>'
         .'<label>Account number<input name="account_number" value="'.h($p['account_number']).'" maxlength="40" autocomplete="off"></label>'
         .'<label>Age<input name="age" type="number" min="0" max="130" step="1" inputmode="numeric" value="'.h((string)(int)$p['age']).'" required></label>'
@@ -1511,7 +1543,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .app{padding-top:24px}.crumb{margin-bottom:14px;color:#6a7d80;font-size:.82rem;font-weight:700}.crumb strong{color:var(--ink)}
 .edit-mode-bar{border-color:#c9dcd7;background:linear-gradient(90deg,#f8fbfa,#fff 44%);box-shadow:var(--shadow-soft)}
 .patient-facts{margin-bottom:28px;padding:13px 16px;border-color:#c4d7d2;background:linear-gradient(180deg,#edf5f2,#e8f1ef);box-shadow:var(--shadow-inset)}
-.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}.patient-facts-edit{margin-left:auto;flex:none;align-self:center;min-height:36px;padding:.42rem .95rem}#patient-edit{width:min(640px,calc(100% - 28px))}.weight-editor{display:flex;align-items:center;gap:8px}.weight-editor input[name=weight]{flex:1;min-width:0}
+.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}.patient-facts-edit{margin-left:auto;flex:none;align-self:center;min-height:36px;padding:.42rem .95rem}.avatar-editor{display:block}.avatar-choices{display:grid;gap:8px}.avatar-choices-label{margin:0;font-weight:700;color:#29484e}.avatar-choices .check{font-weight:650}.avatar-keep{align-items:center;gap:10px}#patient-edit{width:min(640px,calc(100% - 28px))}.weight-editor{display:flex;align-items:center;gap:8px}.weight-editor input[name=weight]{flex:1;min-width:0}
 .patient-facts strong{color:#60777a}.weight-value{color:#173f43}
 .layout{align-items:start}.sidebar{padding:18px 16px;border:1px solid #c8dad6;border-radius:18px;background:linear-gradient(165deg,#edf6f3 0,#f8fbfa 56%,#edf4f5 100%);box-shadow:var(--shadow-inset),0 10px 26px rgba(22,50,56,.055)}
 .side-title{margin-bottom:12px;padding-bottom:13px;border-bottom:1px solid #c9d9d6}.side-title h2{margin:.18rem 0 0;font-size:1.25rem;line-height:1.2}.side-title .eyebrow{color:#51716d}
@@ -1626,6 +1658,13 @@ document.querySelectorAll('[data-weight-editor]').forEach(el=>{
     unit.value=next;
     buttons.forEach(btn=>btn.setAttribute('aria-pressed',btn.dataset.weightUnit===next?'true':'false'));
   }));
+});
+document.querySelectorAll('[data-avatar-editor]').forEach(editor=>{
+  const file=editor.querySelector('input[type=file]');
+  file?.addEventListener('change',()=>{
+    const upload=editor.querySelector('input[value=upload]');
+    if(file.files?.length&&upload)upload.checked=true;
+  });
 });
 const dimensionFactors={cm:1,mm:.1,in:2.54};
 function bindAssessFields(fieldset){
