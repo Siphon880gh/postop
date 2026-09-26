@@ -65,6 +65,9 @@ function demo_generated_source(string $filename): ?string {
     $path=__DIR__.'/pipe/'.$filename;
     return is_file($path)?$path:null;
 }
+function generic_avatar_name(string $gender): string {
+    return strcasecmp($gender,'male')===0?'IMG-AVATAR-MALE.png':'IMG-AVATAR-FEMALE.png';
+}
 function seeded_demo_photo(string $patientDir,string $libraryId,string $woundId,string $date,string $id,string $serial,string $angle,string $caption,int $order): array {
     $slug=trim(preg_replace('/[^a-z0-9]+/','-',strtolower($angle)),'-')?:'shot';
     $src=demo_generated_source(demo_generated_photo_map()[$id]??'');
@@ -159,7 +162,7 @@ function seed(string $dataFile, string $patientDir): void {
     $serials = ['IMG-7F3C92','IMG-A91D40','IMG-2B81EF']; $photos=[];
     foreach ($serials as $i=>$serial) $photos[]=seeded_demo_photo($patientDir,'left-heel','lateral-incision',$complete,'photo-'.($i+1),$serial,'','Seeded reference image',$i+1);
     $priorPhotos=[seeded_demo_photo($patientDir,'left-heel','lateral-incision',$partial,'photo-seeded-prior-date','IMG-4D2A71','Progress check','Seeded prior-day reference image',1)];
-    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.svg'],'seed_version'=>4,'revision'=>1,'libraries'=>[
+    $data=['patient'=>['id'=>DEFAULT_PATIENT_ID,'name'=>'Sample Patient','account_number'=>'A-10042','age'=>64,'weight_kg'=>78.2,'gender'=>'Female','diagnosis'=>'Postoperative left heel wound with posterior heel donor site','avatar'=>'IMG-AVATAR-FEMALE.png'],'seed_version'=>4,'revision'=>1,'libraries'=>[
       ['id'=>'left-heel','name'=>'Left Heel Post-op Recovery','type'=>'Postoperative Wound','custom_type'=>'','start_date'=>$start->format('Y-m-d'),'description'=>'Track recovery milestones and dressing observations.','revision'=>1,'notes'=>[['id'=>'note-lib-1','text'=>'Review progress at each dressing change.','created_at'=>now()]],'day_notes'=>[$partial=>[['id'=>'note-day-1','text'=>'Patient reported improved comfort.','created_at'=>now()]]],'wounds'=>[
         ['id'=>'lateral-incision','name'=>'Lateral incision','location'=>'Left lateral heel','active'=>true,'notes'=>[],'day_notes'=>[$partial=>[['id'=>'note-wound-1','text'=>'Observe incision edge and surrounding skin.','created_at'=>now()]]],'updates'=>[$partial=>['note'=>'Dressing changed; prior progress image available.','photos'=>$priorPhotos],$complete=>['note'=>'Routine progress image set.','photos'=>$photos]]],
         ['id'=>'donor-site','name'=>'Donor site','location'=>'Posterior heel','active'=>true,'notes'=>[],'day_notes'=>[],'updates'=>[$complete=>['note'=>'Clean and dry.','photos'=>[]]]]
@@ -409,7 +412,7 @@ function pipeline_available_patients(): array {
 function pipeline_patient_from_manifest(string $id,array $manifest): array {
     $gender=trim((string)($manifest['gender']??'Female'))?:'Female';
     $avatar=trim((string)($manifest['avatar']??''));
-    if($avatar==='')$avatar=strcasecmp($gender,'male')===0?'IMG-AVATAR-MALE.svg':'IMG-AVATAR-FEMALE.svg';
+    if($avatar==='')$avatar=generic_avatar_name($gender);
     return ['id'=>$id,'name'=>trim((string)$manifest['name']),'account_number'=>trim((string)($manifest['account_number']??'')),'age'=>(int)($manifest['age']??0),'height'=>trim((string)($manifest['height']??'')),'weight_kg'=>(float)($manifest['weight_kg']??0),'gender'=>$gender,'diagnosis'=>trim((string)($manifest['diagnosis']??'')),'avatar'=>$avatar];
 }
 function pipeline_note_list($value): array {
@@ -588,22 +591,67 @@ function avatar_svg(string $serial, string $gender): string {
     $size=$female?'26':'28';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800"><rect width="640" height="800" fill="#07090b"/>'.$hair.'<text x="320" y="756" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="'.$size.'" font-weight="700">'.$serialXml.'</text></svg>';
 }
-function ensure_avatar_assets(string $patientDir): void {
+function publish_avatar_portraits(): void {
     $dir=placeholders_dir();
     if(!is_dir($dir)&&!mkdir($dir,0770,true)&&!is_dir($dir)) return;
-    $female="$dir/female.svg"; $male="$dir/male.svg";
-    if(!is_file($female)) file_put_contents($female,avatar_svg('AVATAR-FEMALE','female'));
-    if(!is_file($male)) file_put_contents($male,avatar_svg('AVATAR-MALE','male'));
-    $dest="$patientDir/IMG-AVATAR-FEMALE.svg";
-    if(!is_file($dest)){
-        $src=is_file($female)?file_get_contents($female):avatar_svg('IMG-AVATAR-FEMALE','female');
-        if(is_string($src)) file_put_contents($dest,str_replace('>AVATAR-FEMALE<','>IMG-AVATAR-FEMALE<',$src));
+    foreach(['female'=>'avatar-female.png','male'=>'avatar-male.png'] as $gender=>$file){
+        $src=demo_generated_source($file);
+        $dest="$dir/$gender.png";
+        if($src&&(!is_file($dest)||filesize($dest)!==filesize($src)))copy($src,$dest);
+        $svg="$dir/$gender.svg";
+        if(!is_file($dest)&&!is_file($svg))file_put_contents($svg,avatar_svg($gender==='female'?'AVATAR-FEMALE':'AVATAR-MALE',$gender));
+        if(is_file($dest)&&is_file($svg))unlink($svg);
+    }
+}
+function is_generic_avatar(string $avatar): bool {
+    return $avatar===''||(bool)preg_match('/^IMG-AVATAR-(MALE|FEMALE)\.(svg|png)$/',$avatar);
+}
+function install_patient_avatar(string $patientDir,array &$data): bool {
+    publish_avatar_portraits();
+    $gender=(string)($data['patient']['gender']??'Female');
+    $avatar=(string)($data['patient']['avatar']??'');
+    if(!is_generic_avatar($avatar))return false;
+    $which=str_contains($avatar,'MALE')||($avatar===''&&strcasecmp($gender,'male')===0)?'male':'female';
+    if(str_contains($avatar,'FEMALE'))$which='female';
+    $name=$which==='male'?'IMG-AVATAR-MALE.png':'IMG-AVATAR-FEMALE.png';
+    $src=placeholders_dir()."/$which.png";
+    if(!is_file($src))return false;
+    if(!is_dir($patientDir)&&!mkdir($patientDir,0770,true)&&!is_dir($patientDir))return false;
+    $dest="$patientDir/$name";
+    $changed=false;
+    if(!is_file($dest)||filesize($dest)!==filesize($src)){
+        if(!copy($src,$dest))return false;
+        $changed=true;
+    }
+    if($avatar!==$name){$data['patient']['avatar']=$name;$changed=true;}
+    foreach(['IMG-AVATAR-FEMALE.svg','IMG-AVATAR-MALE.svg'] as $old){
+        if($old===$name||!is_file("$patientDir/$old"))continue;
+        unlink("$patientDir/$old");
+        $changed=true;
+    }
+    return $changed;
+}
+function ensure_avatar_assets(string $patientDir): void {
+    publish_avatar_portraits();
+    $dataFile=$patientDir.'/record.json';
+    if(!is_file($dataFile))return;
+    $data=json_decode((string)file_get_contents($dataFile),true);
+    if(!is_array($data)||!install_patient_avatar($patientDir,$data))return;
+    $data['revision']=($data['revision']??0)+1;
+    atomic_write($dataFile,$data);
+}
+function ensure_all_avatar_assets(string $root): void {
+    $dir=$root.'/patients';
+    if(!is_dir($dir)){publish_avatar_portraits();return;}
+    foreach(scandir($dir)?:[] as $id){
+        if($id==='.'||$id==='..'||!safe_id($id))continue;
+        ensure_avatar_assets($dir.'/'.$id);
     }
 }
 function patient_profile(array $d): array {
     $p=is_array($d['patient']??null)?$d['patient']:[];
     $gender=(string)($p['gender']??'Female');
-    $avatar=(string)($p['avatar']??(strcasecmp($gender,'male')===0?'IMG-AVATAR-MALE.svg':'IMG-AVATAR-FEMALE.svg'));
+    $avatar=(string)($p['avatar']??generic_avatar_name($gender));
     return [
         'id'=>(string)($p['id']??DEFAULT_PATIENT_ID),
         'name'=>(string)($p['name']??'Sample Patient'),
@@ -742,7 +790,7 @@ if(!is_file($sampleDataFile)||!is_file($accountFile)){
 }
 ensure_demo_photo_dates($sampleDataFile,$samplePatientDir);
 if(!is_file($dataFile))fail('Patient record not found.',404);
-ensure_avatar_assets($patientDir);
+ensure_all_avatar_assets($root);
 
 $accounts=load_accounts();
 $authed=($_SESSION['auth']??false)===true;
@@ -855,9 +903,12 @@ if($action==='avatar'){
 }
 if($action==='avatar-generic'){
     $g=strtolower((string)($_GET['gender']??''))==='male'?'male':'female';
-    $path=placeholders_dir().'/'.$g.'.svg';
-    if(!is_file($path))fail('Placeholder unavailable.',404);
-    header('Content-Type: image/svg+xml');header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=86400');header('X-Content-Type-Options: nosniff');readfile($path);exit;
+    $png=placeholders_dir().'/'.$g.'.png';
+    $svg=placeholders_dir().'/'.$g.'.svg';
+    $path=is_file($png)?$png:(is_file($svg)?$svg:'');
+    if($path==='')fail('Portrait unavailable.',404);
+    $pngFile=$path===$png;
+    header('Content-Type: '.($pngFile?'image/png':'image/svg+xml'));header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=86400');header('X-Content-Type-Options: nosniff');readfile($path);exit;
 }
 if($action==='media'){$d=load_data();$pid=(string)($_GET['id']??'');foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $date=>$u)foreach($u['photos'] as $p)if($p['id']===$pid){$path="$patientDir/libraries/{$l['id']}/wounds/{$w['id']}/$date/{$p['filename']}";if(!is_file($path))fail('Media unavailable.',404);header('Content-Type: '.$p['mime']);header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=31536000, immutable');header('X-Content-Type-Options: nosniff');readfile($path);exit;}fail('Media not found.',404);}
 if($action==='snapshot'){header('Content-Type: application/json');echo json_encode(load_data(),JSON_UNESCAPED_SLASHES);exit;}

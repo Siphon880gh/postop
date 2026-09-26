@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Generic female avatar placeholder">
-  <rect width="640" height="800" fill="#07090b"/>
-  <path fill="#4a5f63" d="M196 248c18-86 78-148 124-148s106 62 124 148c8 38 4 70-10 92-22 14-70 24-114 24s-92-10-114-24c-14-22-18-54-10-92z"/>
-  <circle cx="320" cy="268" r="78" fill="#8aa0a4"/>
-  <path fill="#4a5f63" d="M232 248c8 42 40 72 88 72s80-30 88-72c-16 28-48 48-88 48s-72-20-88-48z"/>
-  <path fill="#6d8589" d="M176 560c18-92 70-150 144-150s126 58 144 150v160H176z"/>
-  <text x="320" y="756" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">AVATAR-FEMALE</text>
-</svg>
