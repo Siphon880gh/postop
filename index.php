@@ -771,11 +771,11 @@ $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$vi
 ?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
 <?=account_modal($account,$csrf,current_page_url())?><?=edit_mode_bar()?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1></div></section><?=patient_picker(patient_records(),$csrf)?>
 <?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><div class="side-title-actions"><button type="button" class="ghost sidebar-toggle" id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar-body">Hide libraries</button><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button></div></div><div class="sidebar-body" id="sidebar-body"><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=h($patientId)?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></div></aside>
-<section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><?=selected_day_notes_banner($selected,$date)?><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form></div></article>
+<section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><div id="day-notes-slot"><?=selected_day_notes_banner($selected,$date)?></div><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form></div></article>
 <?=view_switch($selected,$date,$view),timeline($selected,$date,$view)?>
-<?=$view==='gallery'?gallery_view($selected,$date,$csrf,$galleryOrder):day_view($selected,$date,$csrf)?>
+<p id="date-view-status" class="sr-only" aria-live="polite"></p><div id="date-view"><?=$view==='gallery'?gallery_view($selected,$date,$csrf,$galleryOrder):day_view($selected,$date,$csrf)?></div>
 <div class="section-title"><h2>Wound list</h2><button type="button" class="ghost" onclick="showModal('wound-new')">Add wound</button></div><div class="manage-list"><?php foreach($selected['wounds'] as $w):?><div><span><strong><?=h($w['name'])?></strong><small><?=h($w['location'])?> · <?=$w['active']?'Active':'Inactive — history retained'?></small></span><span class="row"><button type="button" class="ghost small" onclick="showModal('wound-<?=h($w['id'])?>')">Edit <?=h($w['name'])?></button><form method="post" onsubmit="return confirm('Delete this wound, its history, and photos?')"><?=hidden($csrf,$selectedId,$w['id'])?><input type="hidden" name="op" value="wound_delete"><button class="danger ghost small" type="submit">Delete <?=h($w['name'])?></button></form></span></div><?php endforeach?></div>
-<?=modals($selected,$csrf,$date)?><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><?=pwa_controls()?><script><?=js()?></script></body></html>
+<div id="library-dialogs"><?=modals($selected,$csrf,$date)?></div><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><?=pwa_controls()?><script><?=js()?></script></body></html>
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
 function app_footer():string{return '<footer><span>Clinical viewer for post op wounds, pressure injuries, and moles</span><small>Not HIPAA compliant. We do not take responsibility. Internal testing only.</small><a class="footer-maker" href="https://www.linkedin.com/in/weng-fung/" target="_blank" rel="noopener noreferrer">App made by Weng, ICU RN and Software Engineer</a></footer>';}
@@ -1290,7 +1290,7 @@ footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:7
 .top-actions #editMode{display:none}.edit-mode-bar{position:sticky;top:68px;z-index:9;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 22px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 8px 18px rgba(22,50,56,.08)}.edit-mode-bar>span{display:flex;align-items:baseline;gap:8px;min-width:0}.edit-mode-bar strong{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}.edit-mode-bar small{color:var(--muted);font-size:.75rem}.edit-mode-bar #editMode{display:inline-flex;margin-left:auto}
 .angle-nav-spacer{display:block;min-width:44px}.angle-nav{font-weight:850}.wound-photo-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px}.wound-photo-meta-spacer{flex:1;min-width:0}.photo-date-navigation{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted)}.card-date-navigation{width:fit-content;margin:0}.assess-panel{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;width:fit-content;max-width:min(100%,34rem);margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted);min-height:0;font-weight:500;text-align:left;box-shadow:none}.assess-panel:hover{filter:none;background:#eaf2f0}.assess-chip{display:flex;flex-direction:column;gap:0;min-width:0}.assess-chip small{font-size:.58rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase;color:#8a9aa0;line-height:1.1}.assess-panel.is-empty{padding:4px 7px;gap:5px 7px}.assess-panel.is-empty .assess-chip small{font-size:.54rem;color:#93a2a4}.assess-chip.is-set small{color:#5d7370}.assess-chip.is-set b{font-size:.76rem;font-weight:800;color:var(--ink);line-height:1.15;font-variant-numeric:tabular-nums}.missing .assess-panel{background:#eef1f1;border-color:#d2d9d8}.missing .assess-chip.is-set b{color:#3d5053}.assess-fields{display:grid;gap:10px;margin:0;padding:12px 12px 4px;border:1px solid var(--line);border-radius:10px;background:#f7fbfa}.assess-fields legend{padding:0 .3rem;font-size:.72rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}.assess-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.assess-dims input{padding:.5rem .55rem}.photo-date-navigation>span{font-size:.68rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.photo-date-navigation>div{display:flex;gap:5px}.photo-date-navigation button{min-height:32px;padding:.34rem .58rem;font-size:.75rem}.lightbox-context{flex:none;margin:4px 48px 12px 0}.photo-lightbox .lightbox-context h2{margin:.12rem 0;color:#e8f0ee}.photo-lightbox #lightbox-date{color:#b7c9c5}.photo-lightbox #lightbox-wound{margin:0;color:#b7c9c5;font-size:.86rem}.photo-lightbox .lightbox-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px}.photo-lightbox .lightbox-date-navigation{width:fit-content;margin:0;border-color:#314244;background:#182426;color:#b7c9c5}.photo-lightbox .lightbox-date-navigation button{background:#223336;color:#e8f0ee;border-color:#43585a}.photo-lightbox .lightbox-assess{background:#182426;border-color:#314244;color:#b7c9c5}.photo-lightbox .lightbox-assess:hover{filter:none;background:#223336}.photo-lightbox .assess-chip small{color:#8a9aa0}.photo-lightbox .assess-chip.is-set small{color:#9eb0ad}.photo-lightbox .assess-chip.is-set b{color:#e8f0ee}
 @media(max-width:700px){.patient-picker{grid-template-columns:1fr}.edit-mode-bar{top:99px}.angle-nav{font-size:.78rem}.wound-photo-meta,.photo-lightbox .lightbox-meta{flex-direction:column;align-items:stretch}.wound-photo-meta .photo-date-navigation,.wound-photo-meta .assess-panel{width:100%;margin-left:0;justify-content:space-between}.wound-photo-meta .assess-panel{max-width:none}.assess-dims{grid-template-columns:1fr}.lightbox-context{margin-right:40px}.photo-lightbox .lightbox-assess{max-width:100%}}
-.day-counts{margin:.15rem 0 0;color:#0f4f44;font-size:.95rem;font-weight:800}.pod-board{display:flex;align-items:stretch}.pod-labels{flex:none;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;width:10.75rem;padding:13px 10px 13px 12px;background:#fff}.pod-row-label{display:block;width:100%;height:28px;min-height:28px;padding:0;overflow:hidden;border:0;border-radius:0;background:transparent;color:#0f4f44;font-size:.72rem;font-weight:800;line-height:28px;text-align:right;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-overflow:ellipsis;white-space:nowrap}.pod-row-label:hover{background:transparent;color:#0a454f;filter:none}.pod-scroll{display:flex;align-items:stretch;gap:7px;overflow-x:auto;flex:1;min-width:0;padding:13px;scrollbar-width:thin}.pod-scroll.has-note-badges{padding-bottom:52px}.pod-day{display:flex;flex-direction:column;align-items:stretch;min-width:68px;flex:none}.pod-day[hidden]{display:none}.pod-day .date-chip{min-width:68px}.pod-stack{display:flex;flex-direction:column;gap:4px;margin-top:auto;padding-top:6px}.pod-stack.has-badge-gap{padding-top:42px}.pod-num{display:grid;place-items:center;height:28px;min-width:52px;border-radius:7px;background:#e7f3ef;color:#0f4f44;font-size:.8rem;font-weight:800;font-variant-numeric:tabular-nums}.pod-num.is-blank{background:transparent}.pod-actions{padding:0 12px 12px}.pod-actions .small{min-height:32px}dialog form.count-row-remove{margin-top:1.5rem}
+.day-counts{margin:.15rem 0 0;color:#0f4f44;font-size:.95rem;font-weight:800}#date-view.is-loading{min-height:240px}.date-loading{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;padding:36px 16px;color:var(--muted);font-weight:750}.date-spinner{width:34px;height:34px;border:3px solid #d5e4e0;border-top-color:var(--brand);border-radius:50%;animation:date-spin .7s linear infinite}@keyframes date-spin{to{transform:rotate(360deg)}}.pod-board{display:flex;align-items:stretch}.pod-labels{flex:none;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;width:10.75rem;padding:13px 10px 13px 12px;background:#fff}.pod-row-label{display:block;width:100%;height:28px;min-height:28px;padding:0;overflow:hidden;border:0;border-radius:0;background:transparent;color:#0f4f44;font-size:.72rem;font-weight:800;line-height:28px;text-align:right;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-overflow:ellipsis;white-space:nowrap}.pod-row-label:hover{background:transparent;color:#0a454f;filter:none}.pod-scroll{display:flex;align-items:stretch;gap:7px;overflow-x:auto;flex:1;min-width:0;padding:13px;scrollbar-width:thin}.pod-scroll.has-note-badges{padding-bottom:52px}.pod-day{display:flex;flex-direction:column;align-items:stretch;min-width:68px;flex:none}.pod-day[hidden]{display:none}.pod-day .date-chip{min-width:68px}.pod-stack{display:flex;flex-direction:column;gap:4px;margin-top:auto;padding-top:6px}.pod-stack.has-badge-gap{padding-top:42px}.pod-num{display:grid;place-items:center;height:28px;min-width:52px;border-radius:7px;background:#e7f3ef;color:#0f4f44;font-size:.8rem;font-weight:800;font-variant-numeric:tabular-nums}.pod-num.is-blank{background:transparent}.pod-actions{padding:0 12px 12px}.pod-actions .small{min-height:32px}dialog form.count-row-remove{margin-top:1.5rem}
 .sidebar-toggle{display:none}.side-title-actions{display:flex;align-items:center;gap:6px;flex:none}
 /* Controlled visual contrast: preserve the clinical palette and depth while
    giving neighboring regions intentionally different visual roles. */
@@ -1310,7 +1310,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .library-item.selected::before{content:'';position:absolute;inset:8px auto 8px -1px;width:4px;border-radius:0 4px 4px 0;background:linear-gradient(180deg,#1b7b79,#0f5c69)}
 .library-item.selected strong{color:#0e4f59}.library-item:not(.selected) strong{font-weight:720;color:#385157}.library-item:not(.selected) small{color:#718285}
 .sync-device-panel{border-color:#b8d0d8;background:linear-gradient(155deg,#f8fbfb,#e7f1f5);box-shadow:inset 0 2px 10px rgba(22,78,99,.055)}
-.content{position:relative}.library-head{position:relative;overflow:hidden;padding:27px 28px;border-color:#b9d3cd;background:linear-gradient(135deg,#fff 0,#fbfdfc 53%,#eaf5f1 100%);box-shadow:var(--shadow-raised)}
+.content{position:relative;overflow-anchor:none}.library-head{position:relative;overflow:hidden;padding:27px 28px;border-color:#b9d3cd;background:linear-gradient(135deg,#fff 0,#fbfdfc 53%,#eaf5f1 100%);box-shadow:var(--shadow-raised)}
 .library-head::before{content:'';position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,#0f5c69 0,#2b9187 46%,#8ec8b8 100%)}
 .library-head.noted{border-left-color:#bb7c20}.library-head h1{max-width:18ch;margin:.28rem 0 .4rem;font-size:2.15rem;line-height:1.08;letter-spacing:-.025em}.library-head p{max-width:62ch;font-size:1.02rem}.library-head small{color:#60777a;font-weight:700}
 .type{border:1px solid #bee0d6;background:#dff2ec;color:#17644f;letter-spacing:.055em;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
@@ -1404,7 +1404,9 @@ document.querySelectorAll('.weight-control').forEach(el=>{
   buttons.forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();paint(b.dataset.unit)}));
 });
 const dimensionFactors={cm:1,mm:.1,in:2.54};
-document.querySelectorAll('.assess-fields').forEach(fieldset=>{
+function bindAssessFields(fieldset){
+  if(fieldset.dataset.bound==='1')return;
+  fieldset.dataset.bound='1';
   const inputs=[...fieldset.querySelectorAll('[data-dimension-input]')];
   const buttons=[...fieldset.querySelectorAll('[data-dimension-unit]')];
   const labels=[...fieldset.querySelectorAll('.dimension-unit-label')];
@@ -1430,7 +1432,8 @@ document.querySelectorAll('.assess-fields').forEach(fieldset=>{
   };
   buttons.forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();paint(button.dataset.dimensionUnit)}));
   fieldset.closest('form')?.addEventListener('submit',()=>{inputs.forEach(input=>{rememberCm(input);if(input.dataset.cm!=='')input.value=Number(Number(input.dataset.cm).toFixed(2)).toString()})});
-});
+}
+document.querySelectorAll('.assess-fields').forEach(bindAssessFields);
 function closeNoteTips(except){
   document.querySelectorAll('.note-icon-wrap.is-open').forEach(w=>{if(w!==except)w.classList.remove('is-open','is-pinned')});
 }
@@ -1468,64 +1471,78 @@ document.addEventListener('click',e=>{
   }
 });
 document.querySelector('.date-chip.current')?.scrollIntoView({inline:'nearest',block:'nearest',behavior:'instant'});
-(function(){
-  const timeline=document.querySelector('.timeline');
-  const trigger=document.getElementById('note-filter-trigger');
-  const popover=document.getElementById('note-filter-popover');
-  const input=document.getElementById('note-filter-input');
-  const clear=document.getElementById('note-filter-clear');
-  const status=document.getElementById('note-filter-status');
-  if(!timeline||!trigger||!popover||!input||!clear||!status)return;
-  const chips=[...timeline.querySelectorAll('.date-chip[data-note-text]')];
-  const presets=[...popover.querySelectorAll('[data-note-filter-preset]')];
-  const close=focus=>{
-    popover.hidden=true;
-    trigger.setAttribute('aria-expanded','false');
-    if(focus)trigger.focus();
+function noteFilterParts(){
+  return {
+    timeline:document.querySelector('.timeline'),
+    trigger:document.getElementById('note-filter-trigger'),
+    popover:document.getElementById('note-filter-popover'),
+    input:document.getElementById('note-filter-input'),
+    clear:document.getElementById('note-filter-clear'),
+    status:document.getElementById('note-filter-status')
   };
-  const paint=()=>{
-    const raw=input.value.trim();
-    const query=raw.toLocaleLowerCase();
-    let matches=0;
-    chips.forEach(chip=>{
-      const matched=!query||chip.dataset.noteText.toLocaleLowerCase().includes(query);
-      chip.hidden=!matched;
-      const column=chip.closest('.pod-day');
-      if(column)column.hidden=!matched;
-      if(matched)matches++;
-    });
-    const active=Boolean(query);
-    trigger.classList.toggle('is-active',active);
-    trigger.setAttribute('aria-pressed',String(active));
-    trigger.setAttribute('aria-label',active?'Notes filter active: '+raw:'Filter notes');
-    clear.hidden=!active;
-    status.textContent=active?matches+' matching date'+(matches===1?'':'s'):'';
-    document.querySelectorAll('a[href*="date="]').forEach(link=>{
-      const url=new URL(link.getAttribute('href'),location.origin);
-      if(raw)url.searchParams.set('note_filter',raw);
-      else url.searchParams.delete('note_filter');
-      link.setAttribute('href',url.search+url.hash);
-    });
-  };
+}
+function paintNoteFilter(){
+  const {timeline,trigger,input,clear,status}=noteFilterParts();
+  if(!timeline||!trigger||!input||!clear||!status)return;
+  const raw=input.value.trim();
+  const query=raw.toLocaleLowerCase();
+  let matches=0;
+  timeline.querySelectorAll('.date-chip[data-note-text]').forEach(chip=>{
+    const matched=!query||chip.dataset.noteText.toLocaleLowerCase().includes(query);
+    chip.hidden=!matched;
+    const column=chip.closest('.pod-day');
+    if(column)column.hidden=!matched;
+    if(matched)matches++;
+  });
+  const active=Boolean(query);
+  trigger.classList.toggle('is-active',active);
+  trigger.setAttribute('aria-pressed',String(active));
+  trigger.setAttribute('aria-label',active?'Notes filter active: '+raw:'Filter notes');
+  clear.hidden=!active;
+  status.textContent=active?matches+' matching date'+(matches===1?'':'s'):'';
+  document.querySelectorAll('a[href*="date="]').forEach(link=>{
+    const url=new URL(link.getAttribute('href'),location.href);
+    if(raw)url.searchParams.set('note_filter',raw);
+    else url.searchParams.delete('note_filter');
+    link.setAttribute('href',url.search+url.hash);
+  });
+}
+function bindNoteFilter(){
+  const {trigger,popover,input,clear}=noteFilterParts();
+  if(!trigger||!popover||!input||!clear||trigger.dataset.bound==='1')return;
+  trigger.dataset.bound='1';
   trigger.addEventListener('click',()=>{
     const open=popover.hidden;
     popover.hidden=!open;
     trigger.setAttribute('aria-expanded',String(open));
     if(open)input.focus();
   });
-  input.addEventListener('input',paint);
-  input.addEventListener('search',paint);
-  clear.addEventListener('click',()=>{input.value='';paint();input.focus()});
-  presets.forEach(preset=>preset.addEventListener('click',()=>{input.value=preset.dataset.noteFilterPreset||'';paint();input.focus()}));
-  document.addEventListener('click',event=>{
-    if(!popover.hidden&&!trigger.contains(event.target)&&!popover.contains(event.target))close(false);
-  });
-  document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&!popover.hidden){event.preventDefault();close(true)}
-  });
-  paint();
-})();
-document.querySelectorAll('.angle-set').forEach(set=>{
+  input.addEventListener('input',paintNoteFilter);
+  input.addEventListener('search',paintNoteFilter);
+  clear.addEventListener('click',()=>{input.value='';paintNoteFilter();input.focus()});
+  popover.querySelectorAll('[data-note-filter-preset]').forEach(preset=>preset.addEventListener('click',()=>{input.value=preset.dataset.noteFilterPreset||'';paintNoteFilter();input.focus()}));
+  paintNoteFilter();
+}
+document.addEventListener('click',event=>{
+  const {trigger,popover}=noteFilterParts();
+  if(!popover||popover.hidden||!trigger)return;
+  if(!trigger.contains(event.target)&&!popover.contains(event.target)){
+    popover.hidden=true;
+    trigger.setAttribute('aria-expanded','false');
+  }
+});
+document.addEventListener('keydown',event=>{
+  const {trigger,popover}=noteFilterParts();
+  if(event.key!=='Escape'||!popover||popover.hidden||!trigger)return;
+  event.preventDefault();
+  popover.hidden=true;
+  trigger.setAttribute('aria-expanded','false');
+  trigger.focus();
+});
+bindNoteFilter();
+function bindAngleSet(set){
+  if(set.dataset.bound==='1')return;
+  set.dataset.bound='1';
   const figures=[...set.querySelectorAll('.angle-frames figure')];
   const n=figures.length;
   const status=set.querySelector('.angle-status');
@@ -1562,7 +1579,8 @@ document.querySelectorAll('.angle-set').forEach(set=>{
   set.addEventListener('keydown',e=>{if(document.getElementById('photo-lightbox')?.open)return;if(mode()!=='cycle'||n<2)return;if(e.key==='ArrowLeft'){e.preventDefault();go(i-1)}if(e.key==='ArrowRight'){e.preventDefault();go(i+1)}});
   set._figures=figures;set._go=go;set._index=()=>i;set._setIndex=idx=>{i=idx;paint()};
   paint();
-});
+}
+document.querySelectorAll('.angle-set').forEach(bindAngleSet);
 function photoDatesFor(set){return (set?.dataset.photoDates||'').split(',').filter(Boolean)}
 function visitPhotoDate(set,delta){
   const dates=photoDatesFor(set);if(dates.length<2)return;
@@ -1571,7 +1589,151 @@ function visitPhotoDate(set,delta){
   const url=new URL(location.href);url.searchParams.set('date',target);url.hash='';
   const filter=document.getElementById('note-filter-input')?.value.trim()||'';
   if(filter)url.searchParams.set('note_filter',filter);else url.searchParams.delete('note_filter');
-  location.assign(url.toString());
+  loadDate(url.toString());
+}
+function markCurrentDate(date){
+  document.querySelectorAll('.date-chip').forEach(chip=>{
+    let chipDate='';
+    try{chipDate=new URL(chip.getAttribute('href'),location.href).searchParams.get('date')||'';}catch(e){}
+    const on=chipDate===date;
+    chip.classList.toggle('current',on);
+    if(on)chip.setAttribute('aria-current','date');
+    else chip.removeAttribute('aria-current');
+  });
+}
+function revealCurrentDate(){
+  const chip=document.querySelector('.date-chip.current');
+  const scroller=chip?.closest('.pod-scroll, .date-row');
+  if(!chip||!scroller)return;
+  const chipBox=chip.getBoundingClientRect();
+  const box=scroller.getBoundingClientRect();
+  const pad=12;
+  if(chipBox.left<box.left)scroller.scrollLeft-=box.left-chipBox.left+pad;
+  else if(chipBox.right>box.right)scroller.scrollLeft+=chipBox.right-box.right+pad;
+}
+function currentPageUrl(){
+  const here=new URL(location.href);
+  if(!here.searchParams.get('patient'))here.searchParams.set('patient',PATIENT_ID);
+  if(!here.searchParams.get('view'))here.searchParams.set('view','day');
+  if(!here.searchParams.get('library')){
+    const selected=document.querySelector('a.library-item[aria-current="page"]');
+    const library=selected?new URL(selected.href,location.href).searchParams.get('library'):'';
+    if(library)here.searchParams.set('library',library);
+  }
+  if(!here.searchParams.get('date')){
+    const current=document.querySelector('a.date-chip[aria-current="date"]');
+    const date=current?new URL(current.href,location.href).searchParams.get('date'):'';
+    if(date)here.searchParams.set('date',date);
+  }
+  return here;
+}
+function sameLibraryDate(url,here){
+  return url.searchParams.get('patient')===here.searchParams.get('patient')
+    && url.searchParams.get('library')===here.searchParams.get('library')
+    && (url.searchParams.get('view')||'day')===(here.searchParams.get('view')||'day');
+}
+let dateLoadController=null,dateLoadSeq=0;
+async function loadDate(href,options={}){
+  const next=new URL(href,location.href);
+  const here=currentPageUrl();
+  if(!document.getElementById('date-view')||!sameLibraryDate(next,here)){
+    location.assign(next.href);
+    return;
+  }
+  if(!options.force&&next.searchParams.get('date')===here.searchParams.get('date'))return;
+  const view=document.getElementById('date-view');
+  const seq=++dateLoadSeq;
+  dateLoadController?.abort();
+  const controller=new AbortController();
+  dateLoadController=controller;
+  const height=view.getBoundingClientRect().height;
+  const restoreFocus=document.activeElement?.matches?.('a.date-chip, .month-nav a')||false;
+  view.classList.add('is-loading');
+  view.style.minHeight=Math.max(height,240)+'px';
+  view.setAttribute('aria-busy','true');
+  view.innerHTML='<div class="date-loading" role="status"><span class="date-spinner" aria-hidden="true"></span><span>Loading this date</span></div>';
+  const pendingDate=next.searchParams.get('date');
+  if(pendingDate)markCurrentDate(pendingDate);
+  try{
+    const response=await fetch(next.href,{cache:'no-store',signal:controller.signal});
+    if(!response.ok)throw new Error('Could not load this date');
+    const html=await response.text();
+    if(seq!==dateLoadSeq)return;
+    const doc=new DOMParser().parseFromString(html,'text/html');
+    const newView=doc.getElementById('date-view');
+    const newNotes=doc.getElementById('day-notes-slot');
+    const newDialogs=doc.getElementById('library-dialogs');
+    const newTimeline=doc.querySelector('.timeline');
+    const newSwitch=doc.querySelector('.view-switch');
+    if(!newView||!newNotes||!newDialogs||!newTimeline)throw new Error('Date view unavailable');
+    const savedFilter=document.getElementById('note-filter-input')?.value??'';
+    const savedOpen=document.getElementById('note-filter-popover')?.hidden===false;
+    const oldMonth=document.querySelector('.timeline .month-nav strong')?.textContent||'';
+    const oldScroller=document.querySelector('.timeline .pod-scroll, .timeline .date-row');
+    const scrollLeft=oldScroller?.scrollLeft||0;
+    const anchor=document.querySelector('.timeline');
+    const anchorTop=anchor?.getBoundingClientRect().top??null;
+    const scrollX=window.scrollX,scrollY=window.scrollY;
+    document.querySelectorAll('#library-dialogs dialog[open]').forEach(dialog=>dialog.close());
+    document.getElementById('day-notes-slot')?.replaceWith(newNotes);
+    const liveTimeline=document.querySelector('.timeline');
+    liveTimeline?.replaceWith(newTimeline);
+    const newMonth=newTimeline.querySelector('.month-nav strong')?.textContent||'';
+    if(oldMonth===newMonth){
+      const scroller=newTimeline.querySelector('.pod-scroll, .date-row');
+      if(scroller)scroller.scrollLeft=scrollLeft;
+    }
+    const filterInput=document.getElementById('note-filter-input');
+    if(filterInput)filterInput.value=savedFilter;
+    bindNoteFilter();
+    if(savedOpen){
+      const popover=document.getElementById('note-filter-popover');
+      const trigger=document.getElementById('note-filter-trigger');
+      if(popover&&trigger){popover.hidden=false;trigger.setAttribute('aria-expanded','true')}
+    }
+    view.replaceWith(newView);
+    document.getElementById('date-view')?.querySelectorAll('.angle-set').forEach(bindAngleSet);
+    document.getElementById('library-dialogs')?.replaceWith(newDialogs);
+    document.querySelectorAll('#library-dialogs .assess-fields').forEach(bindAssessFields);
+    const liveSwitch=document.querySelector('.view-switch');
+    if(newSwitch&&liveSwitch){
+      const nextLinks=[...newSwitch.querySelectorAll('a')];
+      [...liveSwitch.querySelectorAll('a')].forEach((link,index)=>{
+        const href=nextLinks[index]?.getAttribute('href');
+        if(href)link.setAttribute('href',href);
+      });
+    }
+    paintNoteFilter();
+    revealCurrentDate();
+    if(options.push!==false)history.pushState({dateView:1},'',next.pathname+next.search+next.hash);
+    const timelineNow=document.querySelector('.timeline');
+    if(anchorTop!==null&&timelineNow)window.scrollTo(scrollX,scrollY+(timelineNow.getBoundingClientRect().top-anchorTop));
+    else window.scrollTo(scrollX,scrollY);
+    const loaded=next.searchParams.get('date');
+    const status=document.getElementById('date-view-status');
+    if(status&&loaded)status.textContent='Showing '+lightboxDateLabel(loaded);
+    if(restoreFocus)document.querySelector('.date-chip.current')?.focus({preventScroll:true});
+  }catch(error){
+    if(error?.name==='AbortError'||seq!==dateLoadSeq)return;
+    location.assign(next.href);
+  }
+}
+document.addEventListener('click',event=>{
+  const link=event.target.closest?.('a.date-chip, .month-nav a');
+  if(!link||event.defaultPrevented||event.button!==0)return;
+  if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+  if(link.target&&link.target!=='_self')return;
+  const url=new URL(link.href,location.href);
+  if(!document.getElementById('date-view')||!sameLibraryDate(url,currentPageUrl()))return;
+  event.preventDefault();
+  loadDate(link.href);
+});
+if(document.getElementById('date-view')){
+  history.replaceState({dateView:1},'',location.href);
+  addEventListener('popstate',()=>{
+    if(!document.getElementById('date-view'))return;
+    loadDate(location.href,{force:true,push:false});
+  });
 }
 const lightbox=document.getElementById('photo-lightbox');
 let lbSet=null,lbPhotos=[],lbIndex=0,lbDate='',lbDates=[],lbWoundId='',lbWoundName='',lbWoundDescription='',lbAssessment={};
