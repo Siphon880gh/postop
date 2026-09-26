@@ -641,9 +641,53 @@ function remove_replaced_avatar(string $patientDir, string $avatar): void {
     if(!$real||!$base||dirname($real)!==$base||!is_file($real))return;
     unlink($real);
 }
+function placeholder_avatars_dir(): string { return __DIR__.'/placeholder-avatars'; }
+function placeholder_avatar_files(): array {
+    $dir=placeholder_avatars_dir();
+    if(!is_dir($dir))return [];
+    $files=[];
+    foreach(scandir($dir)?:[] as $file){
+        if(!preg_match('/^[a-z0-9_]+\.png$/',$file)||!is_file("$dir/$file"))continue;
+        $files[]=$file;
+    }
+    $rank=array_flip(['child_asian_female.png','child_asian_male.png','child_black_female.png','child_black_male.png','adult_female.png','adult_male.png','senior_asian_female.png','senior_asian_male.png','senior_black_female.png','senior_black_male.png']);
+    usort($files,static function(string $a,string $b) use ($rank): int {
+        $ra=$rank[$a]??1000;$rb=$rank[$b]??1000;
+        return $ra===$rb?strcmp($a,$b):$ra<=>$rb;
+    });
+    return $files;
+}
+function placeholder_avatar_label(string $file): string {
+    $bits=explode('_',pathinfo($file,PATHINFO_FILENAME));
+    $age=['child'=>'Child','adult'=>'Adult','senior'=>'Older'][$bits[0]??'']??ucfirst((string)($bits[0]??'Portrait'));
+    $look='';$gender='';
+    foreach(array_slice($bits,1) as $bit){
+        if($bit==='female')$gender=($bits[0]??'')==='child'?'girl':'woman';
+        elseif($bit==='male')$gender=($bits[0]??'')==='child'?'boy':'man';
+        elseif($bit!=='')$look=ucfirst($bit);
+    }
+    $parts=array_values(array_filter([$age,$look,$gender],static fn(string $part)=>$part!==''));
+    return $parts?implode(' ',$parts):'Portrait';
+}
+function placeholder_avatar_picker(string $current): string {
+    $o='<div class="avatar-picker">';
+    foreach(placeholder_avatar_files() as $file){
+        $src='index.php?action=avatar-placeholder&file='.rawurlencode($file);
+        $o.='<label class="avatar-pick"><input type="radio" name="avatar_choice" value="'.h($file).'"'.($file===$current?' checked':'').'><img src="'.$src.'" alt="'.h(placeholder_avatar_label($file)).'"></label>';
+    }
+    return $o.'</div>';
+}
 function apply_avatar_choice(string $patientDir, array &$patient, string $choice): void {
     $previous=(string)($patient['avatar']??'');
     if($choice==='keep')return;
+    if(in_array($choice,placeholder_avatar_files(),true)){
+        $src=placeholder_avatars_dir().'/'.$choice;
+        $dest=$patientDir.'/'.$choice;
+        if((!is_file($dest)||filesize($dest)!==filesize($src))&&!copy($src,$dest))fail('Could not store the portrait.',500);
+        $patient['avatar']=$choice;
+        if($previous!==$choice)remove_replaced_avatar($patientDir,$previous);
+        return;
+    }
     if($choice!=='upload')fail('Choose a portrait option.');
     if(!isset($_FILES['avatar'])||!is_array($_FILES['avatar']))fail('Choose a portrait to upload.');
     $err=(int)($_FILES['avatar']['error']??UPLOAD_ERR_NO_FILE);
@@ -689,7 +733,7 @@ function save_patient_details(): void {
     if($unit==='lb')$weight=round($weight/2.2046226218,1);
     if($weight<0.5||$weight>500)fail('Enter a body weight between 0.5 kg and 500 kg.');
     $choice=(string)($_POST['avatar_choice']??'keep');
-    if($choice!=='keep'&&$choice!=='upload')fail('Choose a portrait option.');
+    if($choice!=='keep'&&$choice!=='upload'&&!in_array($choice,placeholder_avatar_files(),true))fail('Choose a portrait option.');
     apply_avatar_choice($patientDir,$p,$choice);
     $p['name']=$name;
     $p['account_number']=$account;
@@ -965,7 +1009,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     } catch(Throwable $e){fail('Unable to complete request: '.$e->getMessage(),500);}
 }
 
-if(in_array($action,['media','avatar','avatar-generic','sync-manifest','snapshot','replay'],true)&&!$authed)fail('Authentication required.',401);
+if(in_array($action,['media','avatar','avatar-generic','avatar-placeholder','sync-manifest','snapshot','replay'],true)&&!$authed)fail('Authentication required.',401);
 if($action==='avatar'){
     $d=load_data();$p=patient_profile($d);$file=basename((string)$p['avatar']);
     if(!preg_match('/^[A-Za-z0-9._-]+\.(svg|png|jpe?g|webp)$/',$file))fail('Avatar unavailable.',404);
@@ -983,6 +1027,12 @@ if($action==='avatar-generic'){
     if($path==='')fail('Portrait unavailable.',404);
     $pngFile=$path===$png;
     header('Content-Type: '.($pngFile?'image/png':'image/svg+xml'));header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=86400');header('X-Content-Type-Options: nosniff');readfile($path);exit;
+}
+if($action==='avatar-placeholder'){
+    $file=basename((string)($_GET['file']??''));
+    if(!in_array($file,placeholder_avatar_files(),true))fail('Portrait unavailable.',404);
+    $path=placeholder_avatars_dir().'/'.$file;
+    header('Content-Type: image/png');header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=86400');header('X-Content-Type-Options: nosniff');readfile($path);exit;
 }
 if($action==='media'){$d=load_data();$pid=(string)($_GET['id']??'');foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $date=>$u)foreach($u['photos'] as $p)if($p['id']===$pid){$path="$patientDir/libraries/{$l['id']}/wounds/{$w['id']}/$date/{$p['filename']}";if(!is_file($path))fail('Media unavailable.',404);header('Content-Type: '.$p['mime']);header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=31536000, immutable');header('X-Content-Type-Options: nosniff');readfile($path);exit;}fail('Media not found.',404);}
 if($action==='snapshot'){header('Content-Type: application/json');echo json_encode(load_data(),JSON_UNESCAPED_SLASHES);exit;}
@@ -1107,9 +1157,11 @@ function patient_edit_dialog(array $p,string $csrf,int $revision,string $returnT
     if(!in_array((string)$p['gender'],$genders,true))$genders[]=(string)$p['gender'];
     $genderOpts='';
     foreach($genders as $gender)$genderOpts.='<option'.($gender===(string)$p['gender']?' selected':'').'>'.h($gender).'</option>';
+    $currentAvatar=basename((string)$p['avatar']);
+    $usingPlaceholder=in_array($currentAvatar,placeholder_avatar_files(),true);
     return dialog_start('patient-edit','Edit patient')
         .'<form method="post" enctype="multipart/form-data"><input type="hidden" name="op" value="patient_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="patient" value="'.h($p['id']).'"><input type="hidden" name="expected_revision" value="'.h((string)$revision).'"><input type="hidden" name="return_to" value="'.h($returnTo).'">'
-        .'<div class="avatar-editor" data-avatar-editor><div class="avatar-choices"><p class="avatar-choices-label">Portrait</p><label class="check avatar-keep"><input type="radio" name="avatar_choice" value="keep" checked>'.avatar_markup($p,'avatar compact-avatar').'<span>Keep current portrait</span></label><label class="check"><input type="radio" name="avatar_choice" value="upload"> Upload a portrait</label><label>JPEG, PNG, or WebP, up to 15 MB<input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"></label></div></div>'
+        .'<div class="avatar-editor" data-avatar-editor><div class="avatar-choices"><p class="avatar-choices-label">Portrait</p><label class="check avatar-keep"><input type="radio" name="avatar_choice" value="keep"'.($usingPlaceholder?'':' checked').'>'.avatar_markup($p,'avatar compact-avatar').'<span>Keep current portrait</span></label>'.placeholder_avatar_picker($usingPlaceholder?$currentAvatar:'').'<label class="check"><input type="radio" name="avatar_choice" value="upload"> Upload a portrait</label><label>JPEG, PNG, or WebP, up to 15 MB<input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"></label></div></div>'
         .'<label>Name<input name="name" value="'.h($p['name']).'" maxlength="80" required autocomplete="name"></label>'
         .'<label>Account number<input name="account_number" value="'.h($p['account_number']).'" maxlength="40" autocomplete="off"></label>'
         .'<label>Age<input name="age" type="number" min="0" max="130" step="1" inputmode="numeric" value="'.h((string)(int)$p['age']).'" required></label>'
@@ -1543,7 +1595,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .app{padding-top:24px}.crumb{margin-bottom:14px;color:#6a7d80;font-size:.82rem;font-weight:700}.crumb strong{color:var(--ink)}
 .edit-mode-bar{border-color:#c9dcd7;background:linear-gradient(90deg,#f8fbfa,#fff 44%);box-shadow:var(--shadow-soft)}
 .patient-facts{margin-bottom:28px;padding:13px 16px;border-color:#c4d7d2;background:linear-gradient(180deg,#edf5f2,#e8f1ef);box-shadow:var(--shadow-inset)}
-.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}.patient-facts-edit{margin-left:auto;flex:none;align-self:center;min-height:36px;padding:.42rem .95rem}.avatar-editor{display:block}.avatar-choices{display:grid;gap:8px}.avatar-choices-label{margin:0;font-weight:700;color:#29484e}.avatar-choices .check{font-weight:650}.avatar-keep{align-items:center;gap:10px}#patient-edit{width:min(640px,calc(100% - 28px))}.weight-editor{display:flex;align-items:center;gap:8px}.weight-editor input[name=weight]{flex:1;min-width:0}
+.patient-facts .compact-avatar{border:1px solid rgba(22,50,56,.16);box-shadow:0 5px 11px rgba(22,50,56,.16)}.patient-facts-edit{margin-left:auto;flex:none;align-self:center;min-height:36px;padding:.42rem .95rem}.avatar-editor{display:block}.avatar-choices{display:grid;gap:8px}.avatar-choices-label{margin:0;font-weight:700;color:#29484e}.avatar-choices .check{font-weight:650}.avatar-keep{align-items:center;gap:10px}.avatar-picker{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.avatar-pick{position:relative;display:block;margin:0;cursor:pointer}.avatar-pick input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.avatar-pick img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:50%;border:2px solid transparent;background:#eef3f2}.avatar-pick input:checked+img{border-color:var(--brand);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--brand)}.avatar-pick input:focus-visible+img{outline:3px solid var(--focus);outline-offset:2px}#patient-edit{width:min(640px,calc(100% - 28px))}.weight-editor{display:flex;align-items:center;gap:8px}.weight-editor input[name=weight]{flex:1;min-width:0}
 .patient-facts strong{color:#60777a}.weight-value{color:#173f43}
 .layout{align-items:start}.sidebar{padding:18px 16px;border:1px solid #c8dad6;border-radius:18px;background:linear-gradient(165deg,#edf6f3 0,#f8fbfa 56%,#edf4f5 100%);box-shadow:var(--shadow-inset),0 10px 26px rgba(22,50,56,.055)}
 .side-title{margin-bottom:12px;padding-bottom:13px;border-bottom:1px solid #c9d9d6}.side-title h2{margin:.18rem 0 0;font-size:1.25rem;line-height:1.2}.side-title .eyebrow{color:#51716d}
@@ -1574,7 +1626,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .patient-card{border-color:#c1d6d1;background:linear-gradient(145deg,#fff 0,#fff 65%,#eef6f3 100%);box-shadow:var(--shadow-raised)}.patient-card .patient-meta{margin-left:-4px;margin-right:-4px;padding:16px 12px 7px;border-top-color:#c8d9d5;background:linear-gradient(180deg,rgba(238,245,243,.6),transparent);border-radius:0 0 11px 11px}.patient-open .avatar{box-shadow:0 9px 20px rgba(8,24,27,.2)}
 .login-card{position:relative;overflow:hidden;border-color:#bfd5d0;background:linear-gradient(150deg,#fff 0,#fff 72%,#edf7f3 100%);box-shadow:0 28px 80px rgba(25,61,65,.17)}.login-card::before{content:'';position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,#164e63,#2a8b84,#91cabc)}
 @media(max-width:980px){.layout{gap:18px}.sidebar{padding:15px 13px}.library-head{padding:24px}.library-head h1{font-size:1.9rem}.wound-card{padding:18px}}
-@media(max-width:700px){body{background:linear-gradient(180deg,#f8fbfa,var(--canvas) 30rem)}.patient-facts{margin-bottom:18px}.sidebar{padding:13px;border-radius:14px}.library-item.selected{transform:none}.library-head{padding:21px 18px}.library-head h1{font-size:1.72rem}.timeline{margin-top:20px}.day-head{margin-top:30px}.wound-card{padding:16px}.angle-set{margin-left:-5px;margin-right:-5px;padding:8px}.section-title{margin-top:34px}}
+@media(max-width:700px){body{background:linear-gradient(180deg,#f8fbfa,var(--canvas) 30rem)}.patient-facts{margin-bottom:18px}.avatar-picker{grid-template-columns:repeat(4,minmax(0,1fr))}.sidebar{padding:13px;border-radius:14px}.library-item.selected{transform:none}.library-head{padding:21px 18px}.library-head h1{font-size:1.72rem}.timeline{margin-top:20px}.day-head{margin-top:30px}.wound-card{padding:16px}.angle-set{margin-left:-5px;margin-right:-5px;padding:8px}.section-title{margin-top:34px}}
 @media(min-width:701px) and (max-width:1180px){
   .sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:.42rem .78rem;font-size:.8rem;font-weight:800}
   .side-title-actions .iconbtn{width:44px;height:44px;min-height:44px}
