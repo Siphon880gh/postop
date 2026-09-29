@@ -1138,7 +1138,8 @@ function expand_icon():string{return '<svg viewBox="0 0 24 24" aria-hidden="true
 function avatar_markup(array $p,string $class='avatar'):string{
     if(is_blank_avatar((string)($p['avatar']??'')))return '<span class="'.$class.' avatar-empty" role="img" aria-label="No portrait">'.blank_avatar_mark().'</span>';
     $src='index.php?action=avatar&patient='.rawurlencode((string)$p['id']).'&file='.rawurlencode((string)$p['avatar']);
-    return '<span class="'.$class.'"><img src="'.$src.'" alt="Portrait of '.h($p['name']).'"></span>';
+    $fallback='index.php?action=avatar-generic&gender='.rawurlencode((string)($p['gender']??'Female'));
+    return '<span class="'.$class.'"><img src="'.$src.'" data-fallback="'.h($fallback).'" onerror="this.onerror=null;this.src=this.dataset.fallback" alt="Portrait of '.h($p['name']).'"></span>';
 }
 function notes_trigger(string $id,int $count,string $kind='Notes'):string{
     if($id==='notes-library'&&$kind==='Notes')$kind='Library notes';
