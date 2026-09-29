@@ -925,7 +925,7 @@ $accounts=load_accounts();
 $authed=($_SESSION['auth']??false)===true;
 if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['op']??'')==='login'){
     $username=trim((string)($_POST['username']??''));$password=(string)($_POST['password']??'');$matched=null;
-    foreach($accounts as $candidate)if(hash_equals($candidate['username'],$username)&&password_verify($password,$candidate['password_hash'])){$matched=$candidate;break;}
+    foreach($accounts as $candidate)if(strcasecmp($candidate['username'],$username)===0&&password_verify($password,$candidate['password_hash'])){$matched=$candidate;break;}
     if($matched){session_regenerate_id(true);$_SESSION=['auth'=>true,'username'=>$matched['username'],'csrf'=>bin2hex(random_bytes(24))];header('Location: index.php',true,303);exit;}
     $_SESSION['login_error']='Incorrect username or password.';header('Location: index.php',true,303);exit;
 }
