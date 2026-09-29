@@ -1,4 +1,5 @@
 .DS_Store
+.env.accounts.php
 storage/
 assets/
 pipe-in/

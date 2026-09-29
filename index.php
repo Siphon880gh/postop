@@ -514,68 +514,7 @@ function import_pipeline_patient(string $root,string $id): string {
         fclose($lock);
     }
 }
-function seed_account(string $accountFile): void {
-    if (is_file($accountFile)) return;
-    $hash=password_hash('password',PASSWORD_DEFAULT);
-    atomic_write($accountFile,[
-        'version'=>3,
-        'accounts'=>[
-            ['display_name'=>'Weng','username'=>'admin','password_hash'=>$hash,'patient_ids'=>['sample-patient']],
-            ['display_name'=>'Weng','username'=>'wf','password_hash'=>$hash,'patient_ids'=>['sample-patient','xiaoping-hong']],
-        ],
-    ]);
-}
-function read_account_file(): array {
-    global $accountFile;
-    $raw=@file_get_contents($accountFile);
-    $decoded=$raw===false?null:json_decode($raw,true);
-    if(!is_array($decoded))fail('The account configuration is unavailable or invalid.',500);
-    return $decoded;
-}
-function account_entry($account): ?array {
-    if(!is_array($account))return null;
-    $hash=$account['password_hash']??null;
-    if(!is_string($hash)||$hash==='')return null;
-    $display=trim((string)($account['display_name']??''));
-    $username=trim((string)($account['username']??''));
-    if($display===''||$username==='')return null;
-    $patientIds=[];
-    $scoped=isset($account['patient_ids'])&&is_array($account['patient_ids']);
-    if($scoped)foreach($account['patient_ids'] as $id)if(is_string($id)&&safe_id($id))$patientIds[]=$id;
-    return ['display_name'=>$display,'username'=>$username,'password_hash'=>$hash,'patient_ids'=>$patientIds,'patient_scope'=>$scoped];
-}
-function load_accounts(): array {
-    $decoded=read_account_file();
-    $candidates=isset($decoded['accounts'])&&is_array($decoded['accounts'])?$decoded['accounts']:[$decoded];
-    $accounts=[];
-    foreach($candidates as $candidate){
-        $entry=account_entry($candidate);
-        if($entry)$accounts[]=$entry;
-    }
-    if(!$accounts)fail('The account configuration is unavailable or invalid.',500);
-    return $accounts;
-}
-function account_can_access(array $account,string $patientId): bool {
-    if(empty($account['patient_scope']))return true;
-    return in_array($patientId,$account['patient_ids'],true);
-}
-function save_account(array $account): void {
-    global $accountFile;
-    $decoded=read_account_file();
-    if(isset($decoded['accounts'])&&is_array($decoded['accounts'])){
-        foreach($decoded['accounts'] as &$existing){
-            if(!is_array($existing)||($existing['username']??'')!==$account['username'])continue;
-            $existing['display_name']=$account['display_name'];
-            $existing['password_hash']=$account['password_hash'];
-            if(array_key_exists('patient_ids',$account))$existing['patient_ids']=$account['patient_ids'];
-            unset($existing);
-            atomic_write($accountFile,$decoded);
-            return;
-        }
-        fail('The account configuration is unavailable or invalid.',500);
-    }
-    atomic_write($accountFile,$account);
-}
+require_once __DIR__ . '/accounts.php';
 function current_page_url(): string {
     $query=$_GET;
     unset($query['action']);
@@ -912,6 +851,7 @@ if(!is_file($sampleDataFile)||!is_file($accountFile)){
         seed($sampleDataFile,$samplePatientDir);
         ensure_demo_photo_dates($sampleDataFile,$samplePatientDir);
         seed_account($accountFile);
+        ensure_accounts($accountFile);
         ensure_avatar_assets($samplePatientDir);
         header('Location: index.php');exit;
     }
@@ -920,6 +860,7 @@ if(!is_file($sampleDataFile)||!is_file($accountFile)){
 ensure_demo_photo_dates($sampleDataFile,$samplePatientDir);
 if(!is_file($dataFile))fail('Patient record not found.',404);
 ensure_all_avatar_assets($root);
+ensure_accounts($accountFile);
 
 $accounts=load_accounts();
 $authed=($_SESSION['auth']??false)===true;
@@ -950,6 +891,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $op=$_POST['op']??'';
     if(!$authed) fail('Authentication required.',401);
     if(!hash_equals((string)($_SESSION['csrf']??''),(string)($_POST['csrf']??'')))fail('Invalid CSRF token.',403);
+    if(!is_array($account)||!account_can($account,(string)$op))fail('You do not have permission to do that.',403);
     if($op==='account_save'){
         $display=trim((string)($_POST['display_name']??''));
         if($display===''||strlen($display)>80)fail('Enter a name of 80 characters or fewer.');
@@ -1054,13 +996,13 @@ if($action==='replay'){fail('Use the online forms to review and apply pending ch
 $csrf=$_SESSION['csrf']??'';$loginError=$_SESSION['login_error']??'';unset($_SESSION['login_error']);$flash=$_SESSION['flash']??'';unset($_SESSION['flash']);
 if(!$authed): ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · <?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">Clinical recordkeeping demo</p><h1><?=APP_NAME?></h1><p class="muted">Sign in to review longitudinal wound records.</p><?php if($loginError):?><div class="alert" role="alert" id="login-error"><?=h($loginError)?></div><?php endif?><form method="post"<?=$loginError?' aria-describedby="login-error"':''?>><input type="hidden" name="op" value="login"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form><div class="demo"><strong>Demo-only credentials</strong><button type="button" class="demo-row" data-user="admin" data-pass="password"><span class="demo-cred"><code>admin</code> / <code>password</code></span><small>Sample Patient</small></button></div></section></main><?=app_footer()?><script>document.querySelectorAll('.demo-row').forEach(function(btn){btn.addEventListener('click',function(){var f=document.querySelector('form');var u=f.querySelector('[name=username]');var p=f.querySelector('[name=password]');u.value=btn.dataset.user;p.value=btn.dataset.pass;u.focus()});});</script></body></html><?php exit;endif;
 $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$view=(($_GET['view']??'')==='gallery')?'gallery':'day';$galleryOrder=gallery_order();$selectedId=(string)($_GET['library']??($d['libraries'][0]['id']??''));$selected=null;foreach($d['libraries'] as $l)if($l['id']===$selectedId)$selected=$l;if($selected){$date=(string)($_GET['date']??'');if($date===''||$date<$selected['start_date']||$date>gmdate('Y-m-d'))$date=latest_relevant_date($selected);}else{$date=gmdate('Y-m-d');}
-?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
-<?=account_modal($account,$csrf,current_page_url())?><?=edit_mode_bar()?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1></div></section><?=patient_picker(patient_records(),$csrf)?>
-<?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><?=patient_edit_dialog($profile,$csrf,(int)$d['revision'],current_page_url())?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><div class="side-title-actions"><button type="button" class="ghost sidebar-toggle" id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar-body">Hide libraries</button><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button></div></div><div class="sidebar-body" id="sidebar-body"><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=h($patientId)?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></div></aside>
-<section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><div id="day-notes-slot"><?=selected_day_notes_banner($selected,$date)?></div><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form></div></article>
+?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body data-can-edit="<?=account_can_edit()?'1':'0'?>"><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><?php if(account_can_edit()):?><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><?php endif?><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
+<?=account_modal($account,$csrf,current_page_url())?><?=account_can_edit()?edit_mode_bar():''?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1></div></section><?=patient_picker(patient_records(),$csrf)?>
+<?php else:?><nav class="crumb" aria-label="Breadcrumb"><a href="index.php">Patients</a><span aria-hidden="true">/</span><strong><?=h($profile['name'])?></strong></nav><?=patient_facts_compact($profile)?><?=account_can_edit()?patient_edit_dialog($profile,$csrf,(int)$d['revision'],current_page_url()):''?><div class="layout"><aside class="sidebar"><div class="side-title"><div><p class="eyebrow">Progress libraries</p><h2><?=h($profile['name'])?></h2></div><div class="side-title-actions"><button type="button" class="ghost sidebar-toggle" id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar-body">Hide libraries</button><?php if(account_can_edit()):?><button type="button" class="iconbtn" onclick="showModal('library-new')" aria-label="Add progress library">+</button><?php endif?></div></div><div class="sidebar-body" id="sidebar-body"><div class="library-list"><?php foreach($d['libraries'] as $l):?><a class="library-item <?=$l['id']===$selectedId?'selected':''?>" <?=$l['id']===$selectedId?'aria-current="page"':''?> href="?patient=<?=h($patientId)?>&library=<?=h($l['id'])?>&view=<?=h($view)?>"><span><strong><?=h($l['name'])?></strong><small><?=h($l['type']==='Custom'?$l['custom_type']:$l['type'])?> · <?=h($l['start_date'])?></small></span><?php if(count($l['notes'])):?><span class="note-badge library-note-badge"><span aria-hidden="true">Notes</span><b aria-hidden="true"><?=count($l['notes'])?></b><span class="sr-only"><?=count($l['notes'])?> notes</span></span><?php endif?></a><?php endforeach?></div><button type="button" id="syncButton" class="sync-card" data-count="<?=sync_count($d)?>"><strong>Sync all to this device</strong><span>Private offline copy · <b><?=sync_count($d)?> photos</b></span></button><div id="syncInfo" class="muted tiny" role="status" aria-live="polite"></div></div></aside>
+<section class="content"><?php if(!$selected):?><div class="empty"><h2>No progress library</h2><p>Add a library to begin.</p></div><?php else:$notes=$selected['notes'];?><div id="day-notes-slot"><?=selected_day_notes_banner($selected,$date)?></div><article class="library-head <?=count($notes)?'noted':''?>"><div><span class="type"><?=h($selected['type']==='Custom'?$selected['custom_type']:$selected['type'])?></span><h1><?=h($selected['name'])?></h1><p><?=h($selected['description'])?></p><small>Tracking since <?=h(date('M j, Y',strtotime($selected['start_date'])))?> · Revision <?=h($selected['revision'])?></small></div><div class="head-buttons"><?=notes_trigger('notes-library',count($notes))?><?php if(account_can_edit()):?><button type="button" class="ghost" onclick="showModal('library-edit')">Edit library</button><form method="post" onsubmit="return confirm('Delete this library and all its records?')"><input type="hidden" name="op" value="library_delete"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><input type="hidden" name="library_id" value="<?=h($selectedId)?>"><button class="danger ghost" type="submit">Delete library</button></form><?php endif?></div></article>
 <?=view_switch($selected,$date,$view),timeline($selected,$date,$view)?>
 <p id="date-view-status" class="sr-only" aria-live="polite"></p><div id="date-view"><?=$view==='gallery'?gallery_view($selected,$date,$csrf,$galleryOrder):day_view($selected,$date,$csrf)?></div>
-<div class="section-title"><h2>Wound list</h2><button type="button" class="ghost" onclick="showModal('wound-new')">Add wound</button></div><div class="manage-list"><?php foreach($selected['wounds'] as $w):?><div><span><strong><?=h($w['name'])?></strong><small><?=h($w['location'])?> · <?=$w['active']?'Active':'Inactive — history retained'?></small></span><span class="row"><button type="button" class="ghost small" onclick="showModal('wound-<?=h($w['id'])?>')">Edit <?=h($w['name'])?></button><form method="post" onsubmit="return confirm('Delete this wound, its history, and photos?')"><?=hidden($csrf,$selectedId,$w['id'])?><input type="hidden" name="op" value="wound_delete"><button class="danger ghost small" type="submit">Delete <?=h($w['name'])?></button></form></span></div><?php endforeach?></div>
+<div class="section-title"><h2>Wound list</h2><?php if(account_can_edit()):?><button type="button" class="ghost" onclick="showModal('wound-new')">Add wound</button><?php endif?></div><div class="manage-list"><?php foreach($selected['wounds'] as $w):?><div><span><strong><?=h($w['name'])?></strong><small><?=h($w['location'])?> · <?=$w['active']?'Active':'Inactive — history retained'?></small></span><?php if(account_can_edit()):?><span class="row"><button type="button" class="ghost small" onclick="showModal('wound-<?=h($w['id'])?>')">Edit <?=h($w['name'])?></button><form method="post" onsubmit="return confirm('Delete this wound, its history, and photos?')"><?=hidden($csrf,$selectedId,$w['id'])?><input type="hidden" name="op" value="wound_delete"><button class="danger ghost small" type="submit">Delete <?=h($w['name'])?></button></form></span><?php endif?></div><?php endforeach?></div>
 <div id="library-dialogs"><?=modals($selected,$csrf,$date)?></div><?=note_filter_help_modal()?><?=photo_lightbox()?><?php endif?></section></div><?php endif?></main><?=app_footer()?><?=pwa_controls()?><script><?=js()?></script></body></html>
 <?php
 function hidden(string $csrf,string $lib,string $w='',string $date=''):string{return '<input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($lib).'">'.($w?'<input type="hidden" name="wound_id" value="'.h($w).'">':'').($date?'<input type="hidden" name="date" value="'.h($date).'">':'');}
@@ -1163,7 +1105,8 @@ function patient_facts(array $p):string{
 }
 function patient_facts_compact(array $p):string{
     $age=(int)$p['age'];
-    return '<div class="patient-facts">'.avatar_markup($p,'avatar compact-avatar').'<span><strong>Account number</strong> '.h($p['account_number']).'</span><span><strong>Age</strong> '.$age.' year'.($age===1?'':'s').'</span>'.($p['height']!==''?'<span><strong>Height</strong> '.h($p['height']).'</span>':'').'<span><strong>Gender</strong> '.h($p['gender']).'</span><span class="patient-facts-weight"><strong>Body weight</strong> '.weight_control((float)$p['weight_kg']).'</span><button type="button" class="ghost patient-facts-edit" onclick="showModal(\'patient-edit\')">Edit</button></div>';
+    $edit=account_can_edit()?'<button type="button" class="ghost patient-facts-edit" onclick="showModal(\'patient-edit\')">Edit</button>':'';
+    return '<div class="patient-facts">'.avatar_markup($p,'avatar compact-avatar').'<span><strong>Account number</strong> '.h($p['account_number']).'</span><span><strong>Age</strong> '.$age.' year'.($age===1?'':'s').'</span>'.($p['height']!==''?'<span><strong>Height</strong> '.h($p['height']).'</span>':'').'<span><strong>Gender</strong> '.h($p['gender']).'</span><span class="patient-facts-weight"><strong>Body weight</strong> '.weight_control((float)$p['weight_kg']).'</span>'.$edit.'</div>';
 }
 function patient_edit_dialog(array $p,string $csrf,int $revision,string $returnTo):string{
     $kg=number_format((float)$p['weight_kg'],1,'.','');
@@ -1211,7 +1154,7 @@ function patient_picker(array $records,string $csrf):string{
     $out='<div class="patient-picker">';
     foreach($records as $d){$p=patient_profile($d);$n=count($d['libraries']);$href='?patient='.rawurlencode($p['id']);$libs=$n.' progress librar'.($n===1?'y':'ies');$out.='<article class="patient-card" aria-labelledby="patient-name-'.h($p['id']).'"><a class="patient-open" href="'.$href.'">'.avatar_markup($p).'<span class="patient-name"><strong id="patient-name-'.h($p['id']).'">'.h($p['name']).'</strong><small>'.$libs.'</small></span></a>'.patient_facts($p).'<a class="patient-go" href="'.$href.'">Open record <span aria-hidden="true">→</span></a></article>';}
     $have=array_map(fn(array $record)=>(string)($record['patient']['id']??''),$records);
-    foreach(pipeline_available_patients() as $candidate){
+    if(account_can_import())foreach(pipeline_available_patients() as $candidate){
         if(in_array($candidate['id'],$have,true))continue;
         $out.='<article class="patient-card patient-add-card"><p class="eyebrow">Available record</p><h2>Add '.h($candidate['name']).'</h2><p class="muted">Import this patient from the local photo pipeline.</p><form method="post"><input type="hidden" name="op" value="patient_import"><input type="hidden" name="pipeline_id" value="'.h($candidate['id']).'"><input type="hidden" name="csrf" value="'.h($csrf).'"><button type="submit">Import patient record</button></form></article>';
     }
@@ -1246,7 +1189,8 @@ function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf
         $heading=photo_heading($p,$i);
         $caption=trim((string)($p['caption']??''));
         $clinical=strlen($caption)>50;
-        $o.='<figure'.($i===0?' class="is-current"':' hidden').' data-index="'.$i.'"><img src="index.php?action=media&patient='.rawurlencode(active_patient_id()).'&id='.h($p['id']).'&v='.$l['revision'].'" alt="'.h($heading).' of '.h($w['name']).'"><figcaption><span class="photo-label"><strong>'.h($heading).'</strong>'.($caption!==''&&!$clinical?'<small>'.h($caption).'</small>':'').'</span><span class="photo-view-actions"><button type="button" class="ghost small photo-label-edit edit-only" onclick="showModal(\'photo-'.h($p['id']).'\')" aria-label="Edit name or description for '.h($heading).'">'.pencil_icon().'<span class="sr-only">Edit '.h($heading).'</span></button><button type="button" class="ghost small photo-expand" data-index="'.$i.'" aria-label="Expand '.h($heading).' of '.h($w['name']).'">'.expand_icon().'Expand</button></span></figcaption>'.($clinical?'<p class="photo-note">'.h($caption).'</p>':'').'</figure>';
+        $labelEdit=account_can_edit()?'<button type="button" class="ghost small photo-label-edit edit-only" onclick="showModal(\'photo-'.h($p['id']).'\')" aria-label="Edit name or description for '.h($heading).'">'.pencil_icon().'<span class="sr-only">Edit '.h($heading).'</span></button>':'';
+        $o.='<figure'.($i===0?' class="is-current"':' hidden').' data-index="'.$i.'"><img src="index.php?action=media&patient='.rawurlencode(active_patient_id()).'&id='.h($p['id']).'&v='.$l['revision'].'" alt="'.h($heading).' of '.h($w['name']).'"><figcaption><span class="photo-label"><strong>'.h($heading).'</strong>'.($caption!==''&&!$clinical?'<small>'.h($caption).'</small>':'').'</span><span class="photo-view-actions">'.$labelEdit.'<button type="button" class="ghost small photo-expand" data-index="'.$i.'" aria-label="Expand '.h($heading).' of '.h($w['name']).'">'.expand_icon().'Expand</button></span></figcaption>'.($clinical?'<p class="photo-note">'.h($caption).'</p>':'').'</figure>';
     }
     $o.='</div>';
     $o.=$n>1?'<button type="button" class="ghost angle-nav next" aria-label="Next shot of '.h($w['name']).'">Next shot</button>':'<span class="angle-nav-spacer" aria-hidden="true"></span>';
@@ -1266,6 +1210,7 @@ function photo_gallery(array $photos,array $w,array $l,string $date,string $csrf
     return $o.photo_manage($photos,$w,$l,$date,$csrf);
 }
 function photo_manage(array $photos,array $w,array $l,string $date,string $csrf):string{
+    if(!account_can_edit())return '';
     $n=count($photos);if($n===0)return '';
     $o='<details class="photo-manage edit-only"><summary>Manage photos</summary><ul>';
     foreach($photos as $i=>$p){
@@ -1328,13 +1273,17 @@ function assessment_panel(?array $u,string $woundId,string $woundName): string {
     $any=assessment_filled($a);
     $sr=[];
     foreach($clips as $c)$sr[]=$c['set']?$c['label'].' '.$c['value']:$c['label'].' not charted';
-    $o='<button type="button" class="assess-panel'.($any?' is-set':' is-empty').'" onclick="showModal(\'update-'.h($woundId).'\')" aria-label="'.h('Assessment for '.$woundName.'. '.implode('. ',$sr)).'">';
+    $label=h('Assessment for '.$woundName.'. '.implode('. ',$sr));
+    $class='assess-panel'.($any?' is-set':' is-empty');
+    $o=account_can_edit()
+        ? '<button type="button" class="'.$class.'" onclick="showModal(\'update-'.h($woundId).'\')" aria-label="'.$label.'">'
+        : '<div class="'.$class.'" aria-label="'.$label.'">';
     foreach($clips as $c){
         $o.='<span class="assess-chip'.($c['set']?' is-set':' is-empty').'"><small>'.h($c['label']).'</small>';
         if($c['set'])$o.='<b>'.h($c['value']).'</b>';
         $o.='</span>';
     }
-    return $o.'</button>';
+    return $o.(account_can_edit()?'</button>':'</div>');
 }
 function assessment_form(?array $u): string {
     $a=assessment_of($u);
@@ -1360,12 +1309,17 @@ function wound_card(array $selected,array $w,string $date,string $csrf):string{
         $o.='</section>';
     }
     if(!$hasPhotos)$o.='<div class="wound-photo-meta">'.assessment_panel($u,$w['id'],$w['name']).'</div>';
+    $actions='';
+    $addPhoto='<button type="button" onclick="showModal(\'photo-add-'.h($w['id']).'-'.h($date).'\')">Add photo</button>';
     if($u){
         $o.=$hasPhotos?photo_gallery($photos,$w,$selected,$date,$csrf):'<div class="no-photo">No photos added</div>';
-        $o.='<div class="row"><button type="button" onclick="showModal(\'photo-add-'.h($w['id']).'-'.h($date).'\')">Add photo</button><button type="button" class="ghost" onclick="showModal(\'update-'.h($w['id']).'\')">Edit update</button><form method="post" onsubmit="return confirm(\'Delete this date update and its photos?\')">'.hidden($csrf,$selected['id'],$w['id'],$date).'<input type="hidden" name="op" value="update_delete"><button class="danger ghost" type="submit">Delete update</button></form></div>';
+        if(account_can_add())$actions.=$addPhoto;
+        if(account_can_edit())$actions.='<button type="button" class="ghost" onclick="showModal(\'update-'.h($w['id']).'\')">Edit update</button><form method="post" onsubmit="return confirm(\'Delete this date update and its photos?\')">'.hidden($csrf,$selected['id'],$w['id'],$date).'<input type="hidden" name="op" value="update_delete"><button class="danger ghost" type="submit">Delete update</button></form>';
     }else{
-        $o.='<div class="row"><button type="button" onclick="showModal(\'update-'.h($w['id']).'\')">Add update for this date</button><button type="button" onclick="showModal(\'photo-add-'.h($w['id']).'-'.h($date).'\')">Add photo</button></div>';
+        if(account_can_edit())$actions.='<button type="button" onclick="showModal(\'update-'.h($w['id']).'\')">Add update for this date</button>';
+        if(account_can_add())$actions.=$addPhoto;
     }
+    if($actions!=='')$o.='<div class="row">'.$actions.'</div>';
     return $o.'</article>';
 }
 function day_view(array $selected,string $date,string $csrf):string{
@@ -1400,7 +1354,8 @@ function gallery_view(array $selected,string $date,string $csrf,string $order='d
             $o.='<details class="wound-acc" open><summary><span><strong>'.h($w['name']).'</strong><small>'.h($w['location']).' · '.photo_word($pc).'</small></span><span class="chev" aria-hidden="true"></span></summary>';
             if($e['notes']){$o.='<section class="wound-notes-panel update-note" aria-label="Wound notes">';foreach($e['notes'] as $note)$o.='<p class="note-entry">'.note_mark_icon().'<span>'.h($note['text']??'').'</span></p>';$o.='</section>';}
             $o.=photo_gallery($e['photos'],$w,$selected,$ds,$csrf);
-            $o.='<div class="row acc-actions"><button type="button" onclick="showModal(\'photo-add-'.h($w['id']).'-'.h($ds).'\')">Add photo</button><a class="ghost button-link" href="'.app_url($selected['id'],$ds,'day').'">Open day record</a></div></details>';
+            $addPhoto=account_can_add()?'<button type="button" onclick="showModal(\'photo-add-'.h($w['id']).'-'.h($ds).'\')">Add photo</button>':'';
+            $o.='<div class="row acc-actions">'.$addPhoto.'<a class="ghost button-link" href="'.app_url($selected['id'],$ds,'day').'">Open day record</a></div></details>';
         }
         $o.='</div></details>';
     }
@@ -1504,12 +1459,13 @@ function timeline(array $l,string $date,string $view='day'):string{
     if($postop){
         $labels='';
         foreach($rows as $row){
-            $labels.='<button type="button" class="pod-row-label" onclick="showModal(\'count-row-'.h($row['id']).'\')" title="'.h($row['label']).'" aria-label="Edit '.h($row['label']).'">'.h($row['label']).'</button>';
+            if(account_can_edit())$labels.='<button type="button" class="pod-row-label" onclick="showModal(\'count-row-'.h($row['id']).'\')" title="'.h($row['label']).'" aria-label="Edit '.h($row['label']).'">'.h($row['label']).'</button>';
+            else $labels.='<span class="pod-row-label is-static" title="'.h($row['label']).'">'.h($row['label']).'</span>';
         }
         $stackGap=$hasNotes&&$rows?' has-badge-gap':'';
         if($stackGap!=='')$days=str_replace('class="pod-stack"','class="pod-stack has-badge-gap"',$days);
         $out.='<div class="pod-board">'.($rows?'<div class="pod-labels">'.$labels.'</div>':'').'<div class="pod-scroll'.($hasNotes&&!$rows?' has-note-badges':'').'">'.$days.$filterBtn.'</div></div>';
-        $out.='<div class="pod-actions"><button type="button" class="ghost small" onclick="showModal(\'count-row-new\')">Add row</button></div>';
+        if(account_can_edit())$out.='<div class="pod-actions"><button type="button" class="ghost small" onclick="showModal(\'count-row-new\')">Add row</button></div>';
     }else{
         $out.='<div class="date-row">'.$days.$filterBtn.'</div>';
     }
@@ -1539,7 +1495,12 @@ function account_modal(array $account,string $csrf,string $returnTo):string{
         .'<form method="post"><input type="hidden" name="op" value="account_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="return_to" value="'.h($returnTo).'"><label>Your name<input name="display_name" value="'.$name.'" autocomplete="name" maxlength="80" required></label><p class="muted tiny">This name appears in the top-right account control.</p><fieldset><legend>Change password</legend><p class="muted tiny">Leave all password fields blank to keep your current password.</p><label>Current password<input name="current_password" type="password" autocomplete="current-password"></label><label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="8"></label><label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8"></label></fieldset><button type="submit">Save account</button></form></dialog>';
 }
 function edit_mode_bar():string{return '<div id="edit-mode-bar" class="edit-mode-bar" hidden><span><strong>Photo editing</strong><small>Show labels and management tools</small></span></div>';}
-function photo_lightbox():string{return '<dialog id="photo-lightbox" class="photo-lightbox" aria-labelledby="lightbox-title"><button type="button" class="close lightbox-close" aria-label="Close expanded photo">×</button><header class="lightbox-context"><p id="lightbox-date" class="eyebrow"></p><h2 id="lightbox-title">Photo viewer</h2><p id="lightbox-wound"></p><div class="lightbox-meta"><div class="photo-date-navigation lightbox-date-navigation" hidden><span>Dates with photos</span><div><button type="button" class="ghost small lightbox-date-prev">Previous date</button><button type="button" class="ghost small lightbox-date-next">Next date</button></div></div><button type="button" class="assess-panel lightbox-assess is-empty" aria-label="Wound assessment"></button></div></header><div class="lightbox-stage"><button type="button" class="ghost lightbox-prev">Previous shot</button><figure><img alt=""><figcaption><strong></strong><small></small></figcaption></figure><button type="button" class="ghost lightbox-next">Next shot</button></div><p class="lightbox-status" aria-live="polite"></p></dialog>';}
+function photo_lightbox():string{
+    $assess=account_can_edit()
+        ? '<button type="button" class="assess-panel lightbox-assess is-empty" aria-label="Wound assessment"></button>'
+        : '<div class="assess-panel lightbox-assess is-empty" aria-label="Wound assessment"></div>';
+    return '<dialog id="photo-lightbox" class="photo-lightbox" aria-labelledby="lightbox-title"><button type="button" class="close lightbox-close" aria-label="Close expanded photo">×</button><header class="lightbox-context"><p id="lightbox-date" class="eyebrow"></p><h2 id="lightbox-title">Photo viewer</h2><p id="lightbox-wound"></p><div class="lightbox-meta"><div class="photo-date-navigation lightbox-date-navigation" hidden><span>Dates with photos</span><div><button type="button" class="ghost small lightbox-date-prev">Previous date</button><button type="button" class="ghost small lightbox-date-next">Next date</button></div></div>'.$assess.'</div></header><div class="lightbox-stage"><button type="button" class="ghost lightbox-prev">Previous shot</button><figure><img alt=""><figcaption><strong></strong><small></small></figcaption></figure><button type="button" class="ghost lightbox-next">Next shot</button></div><p class="lightbox-status" aria-live="polite"></p></dialog>';
+}
 function format_note_time(string $iso):string{
     try{$dt=new DateTimeImmutable($iso);return $dt->setTimezone(new DateTimeZone('UTC'))->format('M j, Y · H:i').' UTC';}
     catch(Throwable $e){return $iso;}
@@ -1552,6 +1513,8 @@ function note_icon(string $kind,string $label):string{
     return '<span class="note-icon-wrap"><span class="note-tip" role="tooltip">'.$label.'</span><button type="'.($kind==='delete'?'submit':'button').'" class="note-icon note-'.$kind.'" aria-label="'.$label.'"'.($kind==='delete'?' name="op" value="note_delete" onclick="return confirm(\'Delete this note?\')"':'').'>'.$svgs[$kind].'</button></span>';
 }
 function note_modal(string $id,string $title,array $notes,string $csrf,array $l,string $scope,string $date='',string $wid=''):string{
+    $canEdit=account_can_edit();
+    $canAdd=account_can_add();
     $o=dialog_start($id,$title).'<div class="note-list">';
     if(!$notes)$o.='<p class="note-empty">No notes yet.</p>';
     foreach($notes as $n){
@@ -1561,17 +1524,52 @@ function note_modal(string $id,string $title,array $notes,string $csrf,array $l,
         $fields=hidden($csrf,$l['id'],$wid,$date).'<input type="hidden" name="scope" value="'.$scope.'"><input type="hidden" name="note_id" value="'.$nid.'">';
         $o.='<article class="note-row" data-note-id="'.$nid.'">';
         $o.='<div class="note-read"><div class="note-body"><p class="note-text">'.h($n['text']).'</p><time datetime="'.$iso.'">'.$when.'</time></div>';
-        $o.='<div class="note-tools">'.note_icon('edit','Edit');
-        $o.='<form method="post" class="note-delete-form">'.$fields.note_icon('delete','Delete').'</form></div></div>';
-        $o.='<form method="post" class="note-edit-form"><input type="hidden" name="op" value="note_edit">'.$fields.'<label class="sr-only" for="note-text-'.$nid.'">Note text</label><textarea id="note-text-'.$nid.'" name="text" required>'.h($n['text']).'</textarea><div class="row"><button type="submit">Save note</button><button type="button" class="ghost note-cancel">Cancel</button></div></form>';
+        if($canEdit){
+            $o.='<div class="note-tools">'.note_icon('edit','Edit');
+            $o.='<form method="post" class="note-delete-form">'.$fields.note_icon('delete','Delete').'</form></div>';
+        }
+        $o.='</div>';
+        if($canEdit)$o.='<form method="post" class="note-edit-form"><input type="hidden" name="op" value="note_edit">'.$fields.'<label class="sr-only" for="note-text-'.$nid.'">Note text</label><textarea id="note-text-'.$nid.'" name="text" required>'.h($n['text']).'</textarea><div class="row"><button type="submit">Save note</button><button type="button" class="ghost note-cancel">Cancel</button></div></form>';
         $o.='</article>';
     }
-    $o.='</div><form method="post" class="note-add-form"><input type="hidden" name="op" value="note_add">'.hidden($csrf,$l['id'],$wid,$date).'<input type="hidden" name="scope" value="'.$scope.'"><label>New note<textarea name="text" required></textarea></label><button type="submit">Add note</button></form></dialog>';
-    return $o;
+    $o.='</div>';
+    if($canAdd)$o.='<form method="post" class="note-add-form"><input type="hidden" name="op" value="note_add">'.hidden($csrf,$l['id'],$wid,$date).'<input type="hidden" name="scope" value="'.$scope.'"><label>New note<textarea name="text" required></textarea></label><button type="submit">Add note</button></form>';
+    return $o.'</dialog>';
 }
 function photo_add_dialog(string $csrf,array $l,array $w,string $date):string{return dialog_start('photo-add-'.h($w['id']).'-'.h($date),'Add photo to '.$w['name'].' · '.date('M j, Y',strtotime($date))).'<form method="post" enctype="multipart/form-data">'.hidden($csrf,$l['id'],$w['id'],$date).'<label>Shot name / angle (optional)<input name="angle" placeholder="For example: Shot 3 or Side"></label><label>Description (optional)<input name="caption" placeholder="For example: Seeded reference images"></label><label>JPEG, PNG, or WebP (max 15 MB)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label><div class="row"><button type="submit" name="op" value="upload">Upload image</button><button class="ghost" type="submit" name="op" value="placeholder">Create placeholder photo</button></div></form></dialog>';}
 function photo_edit_dialog(string $csrf,array $l,array $w,string $date,array $p):string{return dialog_start('photo-'.h($p['id']),'Edit shot').'<form method="post">'.hidden($csrf,$l['id'],$w['id'],$date).'<input type="hidden" name="photo_id" value="'.h($p['id']).'"><label>Shot name / angle (optional)<input name="angle" value="'.h($p['angle']).'" placeholder="For example: Shot 3 or Side"></label><label>Description (optional)<input name="caption" value="'.h($p['caption']).'" placeholder="For example: Seeded reference images"></label><div class="row"><button type="submit" name="op" value="photo_edit">Save shot</button><button class="danger ghost" type="submit" name="op" value="photo_delete" onclick="return confirm(\'Delete this photo?\')">Delete photo</button></div></form></dialog>';}
-function modals(array $l,string $csrf,string $date):string{$o=dialog_start('library-new','Add progress library').library_form($csrf).'</dialog>'.dialog_start('library-edit','Edit progress library').library_form($csrf,$l).'</dialog>';$o.=note_modal('notes-library','Library notes',$l['notes'],$csrf,$l,'library').note_modal('notes-day','Day notes',$l['day_notes'][$date]??[],$csrf,$l,'day',$date);$o.=dialog_start('wound-new','Add wound').wound_form($csrf,$l).'</dialog>';foreach($l['wounds'] as $w){$o.=dialog_start('wound-'.h($w['id']),'Edit '.$w['name']).wound_form($csrf,$l,$w).'</dialog>'.note_modal('notes-'.$w['id'],$w['name'].' notes · '.date('M j, Y',strtotime($date)),wound_notes_for($w,$date),$csrf,$l,'wound',$date,$w['id']);$addDates=[];if(!empty($w['active'])){$u=$w['updates'][$date]??null;$o.=dialog_start('update-'.h($w['id']),($u?'Edit':'Add').' update for '.$w['name']).'<form method="post">'.hidden($csrf,$l['id'],$w['id'],$date).'<input type="hidden" name="op" value="update_save">'.assessment_form($u).'<label>Wound note<textarea name="note">'.h(update_note_for($w,$date)).'</textarea></label><button type="submit">Save update</button></form></dialog>';$addDates[$date]=true;}foreach(($w['updates']??[]) as $ds=>$upd){foreach(($upd['photos']??[]) as $p)$o.=photo_edit_dialog($csrf,$l,$w,$ds,$p);if(!empty($upd['photos']))$addDates[$ds]=true;}foreach($addDates as $ds=>$_)$o.=photo_add_dialog($csrf,$l,$w,$ds);}if(is_postop_library($l)){$o.=count_row_dialog($csrf,$l,$date);foreach(library_count_rows($l) as $row)$o.=count_row_dialog($csrf,$l,$date,$row);}return $o;}
+function modals(array $l,string $csrf,string $date):string{
+    $canEdit=account_can_edit();
+    $canAdd=account_can_add();
+    $o='';
+    if($canEdit){
+        $o.=dialog_start('library-new','Add progress library').library_form($csrf).'</dialog>';
+        $o.=dialog_start('library-edit','Edit progress library').library_form($csrf,$l).'</dialog>';
+        $o.=dialog_start('wound-new','Add wound').wound_form($csrf,$l).'</dialog>';
+    }
+    $o.=note_modal('notes-library','Library notes',$l['notes'],$csrf,$l,'library');
+    $o.=note_modal('notes-day','Day notes',$l['day_notes'][$date]??[],$csrf,$l,'day',$date);
+    foreach($l['wounds'] as $w){
+        if($canEdit)$o.=dialog_start('wound-'.h($w['id']),'Edit '.$w['name']).wound_form($csrf,$l,$w).'</dialog>';
+        $o.=note_modal('notes-'.$w['id'],$w['name'].' notes · '.date('M j, Y',strtotime($date)),wound_notes_for($w,$date),$csrf,$l,'wound',$date,$w['id']);
+        $addDates=[];
+        if(!empty($w['active']))$addDates[$date]=true;
+        if($canEdit&&!empty($w['active'])){
+            $u=$w['updates'][$date]??null;
+            $o.=dialog_start('update-'.h($w['id']),($u?'Edit':'Add').' update for '.$w['name']).'<form method="post">'.hidden($csrf,$l['id'],$w['id'],$date).'<input type="hidden" name="op" value="update_save">'.assessment_form($u).'<label>Wound note<textarea name="note">'.h(update_note_for($w,$date)).'</textarea></label><button type="submit">Save update</button></form></dialog>';
+        }
+        foreach(($w['updates']??[]) as $ds=>$upd){
+            if($canEdit)foreach(($upd['photos']??[]) as $p)$o.=photo_edit_dialog($csrf,$l,$w,$ds,$p);
+            if(!empty($upd['photos']))$addDates[$ds]=true;
+        }
+        if($canAdd)foreach($addDates as $ds=>$_)$o.=photo_add_dialog($csrf,$l,$w,$ds);
+    }
+    if($canEdit&&is_postop_library($l)){
+        $o.=count_row_dialog($csrf,$l,$date);
+        foreach(library_count_rows($l) as $row)$o.=count_row_dialog($csrf,$l,$date,$row);
+    }
+    return $o;
+}
 function library_form(string $csrf,?array $l=null):string{return '<form method="post"><input type="hidden" name="op" value="library_save"><input type="hidden" name="csrf" value="'.h($csrf).'"><input type="hidden" name="library_id" value="'.h($l['id']??'').'"><label>Name<input name="name" value="'.h($l['name']??'').'" required></label><label>Type<select name="type" required>'.implode('',array_map(fn($x)=>'<option '.(($l['type']??'')===$x?'selected':'').'>'.$x.'</option>',['Pressure Injury','Mole Monitoring','Postoperative Wound','Custom'])).'</select></label><label>Custom type (required when Custom)<input name="custom_type" value="'.h($l['custom_type']??'').'"></label><label>Starting date<input type="date" name="start_date" max="'.gmdate('Y-m-d').'" value="'.h($l['start_date']??gmdate('Y-m-d')).'" required></label><label>Description<textarea name="description">'.h($l['description']??'').'</textarea></label><button type="submit">Save library</button></form>';}
 function wound_form(string $csrf,array $l,?array $w=null):string{return '<form method="post">'.hidden($csrf,$l['id']).'<input type="hidden" name="op" value="wound_save"><input type="hidden" name="wound_id" value="'.h($w['id']??'').'"><label>Name<input name="name" value="'.h($w['name']??'').'" required></label><label>Location / description<input name="location" value="'.h($w['location']??'').'"></label><label class="check"><input type="checkbox" name="active" '.(($w['active']??true)?'checked':'').'> Active (inactive history remains retained)</label><button type="submit">Save wound</button></form>';}
 function css():string{return <<<'CSS'
@@ -1582,7 +1580,7 @@ function css():string{return <<<'CSS'
 .view-switch{display:flex;gap:4px;width:fit-content;max-width:100%;margin:18px 0 0;padding:4px;background:#fff;border:1px solid var(--line);border-radius:12px}.view-switch a{padding:.5rem .95rem;border-radius:8px;color:var(--muted);font-weight:750}.view-switch a:hover{color:var(--ink)}.view-switch a[aria-current="page"]{background:var(--brand);color:#fff}.view-switch a[aria-current="page"]:hover{color:#fff}.button-link{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brand);font-weight:750;padding:.68rem 1rem;min-height:32px}.photo-accordion{display:grid;gap:10px}.photo-accordion details{background:#fff;border:1px solid var(--line);border-radius:14px}.photo-accordion summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;scroll-margin-top:140px}.photo-accordion summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.photo-accordion summary::-webkit-details-marker{display:none}.photo-accordion summary small{display:block;font-weight:600;color:var(--muted);margin-top:2px}.photo-accordion .chev{flex:none;color:var(--brand);font-size:.85rem;line-height:1;width:auto;height:auto;border:0;transform:none}.photo-accordion .chev::before{content:'▸'}.photo-accordion details[open]>summary .chev{transform:none}.photo-accordion details[open]>summary .chev::before{content:'▾'}.photo-accordion .day-panel{padding:0 14px 16px}.wound-acc{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:#f8fbfa}.wound-acc summary{padding:12px 14px}.wound-acc .update-note{margin:0 14px 8px}.wound-acc .angle-set{margin:8px 14px 12px}.acc-actions{margin:0 14px 14px}
 @media(max-width:980px){.app{padding:20px}.layout{grid-template-columns:240px minmax(0,1fr);gap:18px}.wound-grid{grid-template-columns:1fr}.library-head{display:block}.head-buttons{margin-top:16px;flex-wrap:wrap}.sidebar{top:136px}}@media(max-width:700px){.topbar{height:auto;min-height:68px;padding:10px 14px;flex-wrap:wrap;gap:8px}.wordmark{font-size:.9rem;max-width:calc(100% - 8px)}.status{font-size:.72rem;padding:.3rem .55rem}.app{padding:14px}.layout{display:block}.sidebar{position:static}.library-list{flex-direction:row;overflow-x:auto}.library-item{min-width:230px}.sync-card{margin-bottom:17px}.library-head{padding:17px}.month-nav{grid-template-columns:1fr 1fr}.month-nav strong{order:-1;grid-column:1/-1}.day-head{align-items:end;flex-wrap:wrap;gap:8px}.wound-card{padding:14px}.manage-list>div{align-items:start;flex-wrap:wrap;gap:8px}.toast{left:14px;right:14px}.top-actions{width:100%;justify-content:flex-end}.login-card{padding:25px}.patient-meta{grid-template-columns:1fr}.view-switch{width:100%;position:static;top:auto}.angle-stage{grid-template-columns:1fr 1fr}.angle-frames{grid-column:1/-1;order:-1}.angle-nav{width:100%}.angle-frames img{height:min(40vh,280px)}.photo-lightbox{padding:12px}}@media(min-width:701px) and (max-width:1180px){.app{padding-left:20px;padding-right:20px}.layout{grid-template-columns:minmax(220px,245px) minmax(0,1fr);gap:18px}.library-head{display:block}.library-head h1{font-size:1.65rem}.head-buttons{margin-top:14px;flex-wrap:wrap}.wound-grid{grid-template-columns:1fr}.month-nav{gap:10px}.date-row{flex-wrap:wrap;overflow:visible}.date-chip{min-width:52px}.library-item small{overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
-.edit-mode{display:inline-flex;align-items:center;gap:.42rem;background:#fff;color:var(--brand);border:1px solid var(--line);padding:.38rem .65rem}.edit-mode svg{width:1rem;height:1rem;fill:currentColor}.edit-mode small{font-size:.7rem;font-weight:850;color:var(--muted)}.edit-mode[aria-pressed="true"]{background:#e5f3ef;border-color:#74aea3;color:#15574f}.edit-mode[aria-pressed="true"] small{color:inherit}.edit-only{display:none!important}body.is-editing .edit-only{display:inline-flex!important}.photo-manage.edit-only{display:none!important}body.is-editing .photo-manage.edit-only{display:block!important}.photo-view-actions{display:flex;gap:6px;align-items:center;flex:none}.photo-label-edit{width:32px;min-width:32px;min-height:32px;padding:.38rem}.photo-label-edit svg{width:15px;height:15px;display:block}
+.pod-row-label.is-static{text-decoration:none;cursor:default}.edit-mode{display:inline-flex;align-items:center;gap:.42rem;background:#fff;color:var(--brand);border:1px solid var(--line);padding:.38rem .65rem}.edit-mode svg{width:1rem;height:1rem;fill:currentColor}.edit-mode small{font-size:.7rem;font-weight:850;color:var(--muted)}.edit-mode[aria-pressed="true"]{background:#e5f3ef;border-color:#74aea3;color:#15574f}.edit-mode[aria-pressed="true"] small{color:inherit}.edit-only{display:none!important}body.is-editing .edit-only{display:inline-flex!important}.photo-manage.edit-only{display:none!important}body.is-editing .photo-manage.edit-only{display:block!important}.photo-view-actions{display:flex;gap:6px;align-items:center;flex:none}.photo-label-edit{width:32px;min-width:32px;min-height:32px;padding:.38rem}.photo-label-edit svg{width:15px;height:15px;display:block}
 .photo-accordion .chev{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:#edf5f2;font-size:1.65rem;line-height:1;color:var(--brand)}.photo-accordion .chev::before{content:'›'}.photo-accordion details[open]>summary .chev::before{content:'⌄'}.next-photo-control{display:flex;align-items:center;gap:6px}.angle-advance{min-width:48px;min-height:48px;padding:0;font-size:2rem;line-height:1}.next-options{position:relative}.next-options summary{display:grid;place-items:center;min-width:38px;min-height:38px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:0}.next-options summary::-webkit-details-marker{display:none}.next-options summary::before{content:'⌄';font-size:1.3rem;line-height:1}.next-options summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.next-options>div{position:absolute;right:0;z-index:4;width:max-content;min-width:190px;margin-top:6px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}.next-options button{display:flex;width:100%;justify-content:space-between;gap:12px;background:transparent;color:var(--ink);padding:.55rem .65rem;text-align:left}.next-options button:hover{background:#edf5f2;filter:none}.next-options button[aria-pressed="true"]{color:var(--brand);font-weight:850}.next-options small{color:var(--muted);font-size:.68rem}.next-options button[aria-pressed="true"] small{color:inherit}
 .patient-meta .patient-diagnosis{grid-column:1/-1}.patient-diagnosis dd{max-width:54rem}#photo-gallery-card{scroll-margin-top:88px}.gallery-order-toggle{display:grid;place-items:center;flex:none;width:38px;height:38px;min-height:38px;padding:0;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brand);font-size:1.35rem;font-weight:850;line-height:1}.gallery-order-toggle:hover{background:#edf5f2;color:var(--brand)}.note-entry{display:flex;align-items:flex-start;gap:8px}.note-mark{flex:none;width:16px;height:16px;margin-top:3px;color:#7a4314}
 .patient-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.patient-picker .patient-card{width:100%;max-width:none}
@@ -2198,6 +2196,7 @@ if(lightbox){
   lightbox.querySelector('.lightbox-date-prev')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();lightboxVisitDate(-1)});
   lightbox.querySelector('.lightbox-date-next')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();lightboxVisitDate(1)});
   lightbox.querySelector('.lightbox-assess')?.addEventListener('click',e=>{
+    if(document.body.dataset.canEdit!=='1')return;
     e.preventDefault();e.stopPropagation();
     if(!lbWoundId)return;
     lightbox.close();
