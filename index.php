@@ -1428,12 +1428,24 @@ function day_count_line(array $l,string $date):string{
     $phrases=day_count_phrases($l,$date);
     return $phrases?'<p class="day-counts">'.h(implode(' · ',$phrases)).'</p>':'';
 }
+function month_nav_date(DateTimeImmutable $cur,int $delta,DateTimeImmutable $start,DateTimeImmutable $end):?string{
+    $day=(int)$cur->format('j');
+    $base=$cur->modify('first day of this month')->modify(($delta>=0?'+':'').$delta.' month');
+    $target=$base->setDate((int)$base->format('Y'),(int)$base->format('n'),min($day,(int)$base->format('t')));
+    if($target<$start)$target=$start;
+    if($target>$end)$target=$end;
+    if($target->format('Y-m')!==$base->format('Y-m'))return null;
+    return $target->format('Y-m-d');
+}
 function timeline(array $l,string $date,string $view='day'):string{
     $filter=note_filter_query();$active=$filter!=='';
     $start=new DateTimeImmutable($l['start_date']);$end=new DateTimeImmutable('today');$cur=new DateTimeImmutable($date);$month=$cur->format('Y-m');
     $first=maxdate($start,new DateTimeImmutable($month.'-01'));$last=mindate($end,new DateTimeImmutable($month.'-01 last day of this month'));
     $postop=is_postop_library($l);$rows=$postop?library_count_rows($l):[];
-    $out='<nav class="timeline" aria-label="Date timeline"><div class="month-nav"><a href="'.app_url($l['id'],$start->format('Y-m-d'),$view).'">First day</a><a href="'.app_url($l['id'],$cur->modify('-1 month')->format('Y-m-d'),$view).'">Previous month</a><strong>'.$cur->format('F Y').'</strong><a href="'.app_url($l['id'],$cur->modify('+1 month')->format('Y-m-d'),$view).'">Next month</a><a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div>';
+    $prevMonth=month_nav_date($cur,-1,$start,$end);$nextMonth=month_nav_date($cur,1,$start,$end);
+    $prevLink=$prevMonth!==null?'<a href="'.app_url($l['id'],$prevMonth,$view).'">Previous month</a>':'<span class="month-nav-disabled">Previous month</span>';
+    $nextLink=$nextMonth!==null?'<a href="'.app_url($l['id'],$nextMonth,$view).'">Next month</a>':'<span class="month-nav-disabled">Next month</span>';
+    $out='<nav class="timeline" aria-label="Date timeline"><div class="month-nav"><a href="'.app_url($l['id'],$start->format('Y-m-d'),$view).'">First day</a>'.$prevLink.'<strong>'.$cur->format('F Y').'</strong>'.$nextLink.'<a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div>';
     $days='';$hasNotes=false;
     for($x=$first;$x<=$last;$x=$x->modify('+1 day')){
         $ds=$x->format('Y-m-d');$photos=photo_count_on_date($l,$ds);$nn=notes_count_on_date($l,$ds);$noteText=note_search_text_on_date($l,$ds);if($noteText!=='')$hasNotes=true;
@@ -1626,7 +1638,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .view-switch{margin-top:20px;padding:5px;border-color:#c7dad5;background:#e7f0ee;box-shadow:inset 0 2px 7px rgba(22,50,56,.07),0 4px 12px rgba(22,50,56,.045)}
 .view-switch a{padding:.55rem 1.05rem}.view-switch a[aria-current="page"]{box-shadow:0 5px 12px rgba(15,92,105,.2)}
 .timeline{margin:28px 0 31px;border-color:#b8d0ca;background:linear-gradient(180deg,#e7f1ee 0,#edf5f3 100%);box-shadow:var(--shadow-inset),0 10px 22px rgba(22,50,56,.06)}
-.month-nav{padding:14px 16px;border-bottom-color:#bed2cd;background:rgba(255,255,255,.72)}.month-nav strong{color:#173f43;font-size:1.02rem}.month-nav a{font-weight:760}
+.month-nav{padding:14px 16px;border-bottom-color:#bed2cd;background:rgba(255,255,255,.72)}.month-nav strong{color:#173f43;font-size:1.02rem}.month-nav a{font-weight:760}.month-nav .month-nav-disabled{color:var(--muted);opacity:.45;font-weight:760;cursor:default}
 .pod-board{background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(223,239,234,.42))}.pod-labels{border-right:1px solid #c8dad6;background:linear-gradient(90deg,#f8fbfa,#eef5f3)}.pod-scroll{padding-top:15px}
 .date-chip{border-color:#c5d6d2;background:linear-gradient(180deg,#f8faf9,#edf1f0);box-shadow:0 3px 0 rgba(70,103,101,.11),0 5px 10px rgba(22,50,56,.04)}.date-chip.idle{background:linear-gradient(180deg,#edf0ef,#e3e8e6);color:#738386;box-shadow:inset 0 2px 5px rgba(22,50,56,.055)}.date-chip.has-photos{border-color:#77b7aa;background:linear-gradient(180deg,#e5f6f0,#cde9e1);box-shadow:0 3px 0 #9bc9be,0 6px 12px rgba(15,92,105,.1)}.date-chip.current{outline:3px solid #0f5c69;outline-offset:2px;box-shadow:0 4px 0 #0f5c69,0 10px 18px rgba(15,92,105,.2);transform:translateY(-2px)}
 .pod-num{border:1px solid #d3e5e0;background:#e0efea}.pod-num.is-blank{border-color:transparent;background:transparent}
@@ -1940,6 +1952,7 @@ function revealCurrentDate(){
   if(chipBox.left<box.left)scroller.scrollLeft-=box.left-chipBox.left+pad;
   else if(chipBox.right>box.right)scroller.scrollLeft+=chipBox.right-box.right+pad;
 }
+const PATIENT_ID=new URLSearchParams(location.search).get('patient')||'sample-patient';
 function currentPageUrl(){
   const here=new URL(location.href);
   if(!here.searchParams.get('patient'))here.searchParams.set('patient',PATIENT_ID);
@@ -2156,32 +2169,48 @@ function findAngleSet(woundId,date){
   return document.querySelector(`.angle-set[data-wound-id="${CSS.escape(woundId)}"][data-date="${CSS.escape(date)}"]`);
 }
 async function loadLightboxDate(target){
-  const existing=findAngleSet(lbWoundId,target);
-  if(existing){bindLightboxSet(existing,0);return}
-  const r=await fetch(`index.php?action=snapshot&patient=${encodeURIComponent(PATIENT_ID)}`);
-  if(!r.ok)return;
-  const data=await r.json();
-  let photos=[];
-  for(const lib of data.libraries||[]){
-    for(const wound of lib.wounds||[]){
-      if(String(wound.id||'')!==lbWoundId)continue;
-      lbWoundName=wound.name||lbWoundName;
-      lbWoundDescription=wound.location||lbWoundDescription;
-      const shots=wound.updates?.[target]?.photos||[];
-      lbAssessment=parseAssessment(wound.updates?.[target]?.assessment||{});
-      const rev=lib.revision||1;
-      photos=shots.map((p,i)=>{
-        const title=(p.angle&&p.angle.trim())||`Shot ${i+1}`;
-        return {src:`index.php?action=media&patient=${encodeURIComponent(PATIENT_ID)}&id=${encodeURIComponent(p.id)}&v=${rev}`,alt:`${title} of ${wound.name||'wound'}`,title,caption:p.caption||''};
-      });
+  if(!target||!lbWoundId)return;
+  try{
+    let existing=findAngleSet(lbWoundId,target);
+    if(existing){bindLightboxSet(existing,0);return}
+    const here=currentPageUrl();
+    if(document.getElementById('date-view')&&here.searchParams.get('date')!==target){
+      const url=new URL(here.href);
+      url.searchParams.set('date',target);
+      url.hash='';
+      const filter=document.getElementById('note-filter-input')?.value.trim()||'';
+      if(filter)url.searchParams.set('note_filter',filter);else url.searchParams.delete('note_filter');
+      await loadDate(url.toString());
+      existing=findAngleSet(lbWoundId,target);
+      if(existing){bindLightboxSet(existing,0);return}
     }
-  }
-  if(!photos.length)return;
-  lbSet=null;
-  lbDate=target;
-  lbPhotos=photos;
-  lbIndex=0;
-  lightboxPaint();
+    const r=await fetch(`index.php?action=snapshot&patient=${encodeURIComponent(PATIENT_ID)}`);
+    if(!r.ok)return;
+    const data=await r.json();
+    let photos=[];
+    outer:for(const lib of data.libraries||[]){
+      for(const wound of lib.wounds||[]){
+        if(String(wound.id||'')!==lbWoundId)continue;
+        const shots=wound.updates?.[target]?.photos||[];
+        if(!shots.length)continue;
+        lbWoundName=wound.name||lbWoundName;
+        lbWoundDescription=wound.location||lbWoundDescription;
+        lbAssessment=parseAssessment(wound.updates?.[target]?.assessment||{});
+        const rev=lib.revision||1;
+        photos=shots.map((p,i)=>{
+          const title=(p.angle&&p.angle.trim())||`Shot ${i+1}`;
+          return {src:`index.php?action=media&patient=${encodeURIComponent(PATIENT_ID)}&id=${encodeURIComponent(p.id)}&v=${rev}`,alt:`${title} of ${wound.name||'wound'}`,title,caption:p.caption||''};
+        });
+        break outer;
+      }
+    }
+    if(!photos.length)return;
+    lbSet=null;
+    lbDate=target;
+    lbPhotos=photos;
+    lbIndex=0;
+    lightboxPaint();
+  }catch(e){}
 }
 function lightboxVisitDate(delta){
   if(lbDates.length<2)return;
@@ -2228,7 +2257,6 @@ if(network){
 }
 function net(){if(!network)return;network.textContent=navigator.onLine?'Online':'Offline';network.classList.toggle('offline',!navigator.onLine)} addEventListener('online',net);addEventListener('offline',net);net();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('index.php?action=service-worker',{scope:'./'});
-const PATIENT_ID=new URLSearchParams(location.search).get('patient')||'sample-patient';
 const DB='skin-wound-viewer',CACHE='swcv-patient-'+PATIENT_ID;
 function db(){return new Promise((ok,no)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('meta'))d.createObjectStore('meta');if(!d.objectStoreNames.contains('outbox'))d.createObjectStore('outbox',{keyPath:'id'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 async function metaPut(k,v){const d=await db();return new Promise((ok,no)=>{const t=d.transaction('meta','readwrite');t.objectStore('meta').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})}
