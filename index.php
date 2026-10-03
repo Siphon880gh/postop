@@ -1967,7 +1967,9 @@ function visitPhotoDate(set,delta){
   const url=new URL(location.href);url.searchParams.set('date',target);url.hash='';
   const filter=document.getElementById('note-filter-input')?.value.trim()||'';
   if(filter)url.searchParams.set('note_filter',filter);else url.searchParams.delete('note_filter');
-  loadDate(url.toString());
+  const card=set.closest('.wound-card');
+  const scrollWound=card?.dataset.woundId||'';
+  loadDate(url.toString(),scrollWound?{scrollWound,scrollCardTop:card.getBoundingClientRect().top}:{});
 }
 function markCurrentDate(date){
   document.querySelectorAll('.date-chip').forEach(chip=>{
@@ -2027,10 +2029,16 @@ async function loadDate(href,options={}){
   dateLoadController=controller;
   const height=view.getBoundingClientRect().height;
   const restoreFocus=document.activeElement?.matches?.('a.date-chip, .month-nav a')||false;
+  const keepX=window.scrollX,keepY=window.scrollY;
+  if(options.scrollWound){
+    const active=document.activeElement;
+    if(active&&view.contains(active))active.blur();
+  }
   view.classList.add('is-loading');
   view.style.minHeight=Math.max(height,240)+'px';
   view.setAttribute('aria-busy','true');
   view.innerHTML='<div class="date-loading" role="status"><span class="date-spinner" aria-hidden="true"></span><span>Loading this date</span></div>';
+  if(options.scrollWound)window.scrollTo(keepX,keepY);
   const pendingDate=next.searchParams.get('date');
   if(pendingDate)markCurrentDate(pendingDate);
   try{
@@ -2088,6 +2096,13 @@ async function loadDate(href,options={}){
     const timelineNow=document.querySelector('.timeline');
     if(anchorTop!==null&&timelineNow)window.scrollTo(scrollX,scrollY+(timelineNow.getBoundingClientRect().top-anchorTop));
     else window.scrollTo(scrollX,scrollY);
+    if(options.scrollWound&&options.scrollCardTop!=null){
+      const card=document.querySelector(`#date-view .wound-card[data-wound-id="${CSS.escape(options.scrollWound)}"]`);
+      if(card){
+        const delta=card.getBoundingClientRect().top-options.scrollCardTop;
+        if(delta)window.scrollTo(window.scrollX,window.scrollY+delta);
+      }
+    }
     const loaded=next.searchParams.get('date');
     const status=document.getElementById('date-view-status');
     if(status&&loaded)status.textContent='Showing '+lightboxDateLabel(loaded);
