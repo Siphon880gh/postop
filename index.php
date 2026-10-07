@@ -1612,7 +1612,7 @@ footer{line-height:1.45}footer span{display:block;color:var(--ink);font-weight:7
 .top-actions #editMode{display:none}.edit-mode-bar{position:sticky;top:68px;z-index:9;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 22px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 8px 18px rgba(22,50,56,.08)}.edit-mode-bar>span{display:flex;align-items:baseline;gap:8px;min-width:0}.edit-mode-bar strong{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}.edit-mode-bar small{color:var(--muted);font-size:.75rem}.edit-mode-bar #editMode{display:inline-flex;margin-left:auto}
 .angle-nav-spacer{display:block;min-width:44px}.angle-nav{font-weight:850}.wound-photo-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px}.wound-photo-meta-spacer{flex:1;min-width:0}.photo-date-navigation{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted)}.card-date-navigation{width:fit-content;margin:0}.assess-panel{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;width:fit-content;max-width:min(100%,34rem);margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:#f4f8f7;color:var(--muted);min-height:0;font-weight:500;text-align:left;box-shadow:none}.assess-panel:hover{filter:none;background:#eaf2f0}.assess-chip{display:flex;flex-direction:column;gap:0;min-width:0}.assess-chip small{font-size:.58rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase;color:#8a9aa0;line-height:1.1}.assess-panel.is-empty{padding:4px 7px;gap:5px 7px}.assess-panel.is-empty .assess-chip small{font-size:.54rem;color:#93a2a4}.assess-chip.is-set small{color:#5d7370}.assess-chip.is-set b{font-size:.76rem;font-weight:800;color:var(--ink);line-height:1.15;font-variant-numeric:tabular-nums}.missing .assess-panel{background:#eef1f1;border-color:#d2d9d8}.missing .assess-chip.is-set b{color:#3d5053}.assess-fields{display:grid;gap:10px;margin:0;padding:12px 12px 4px;border:1px solid var(--line);border-radius:10px;background:#f7fbfa}.assess-fields legend{padding:0 .3rem;font-size:.72rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}.assess-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.assess-dims input{padding:.5rem .55rem}.photo-date-navigation>span{font-size:.68rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.photo-date-navigation>div{display:flex;gap:5px}.photo-date-navigation button{min-height:32px;padding:.34rem .58rem;font-size:.75rem}.angle-date-flash{position:fixed;z-index:30;top:0;left:0;margin:0;pointer-events:none;padding:.34rem .6rem;border-radius:8px;background:#173f43;color:#fff;font-size:.75rem;font-weight:800;line-height:1.2;box-shadow:var(--shadow);white-space:nowrap;animation:angle-date-flash 1.8s ease forwards}@keyframes angle-date-flash{0%,72%{opacity:1}100%{opacity:0}}.lightbox-context{flex:none;margin:4px 48px 12px 0}.photo-lightbox .lightbox-context h2{margin:.12rem 0;color:#e8f0ee}.photo-lightbox #lightbox-date{color:#b7c9c5}.photo-lightbox #lightbox-wound{margin:0;color:#b7c9c5;font-size:.86rem}.photo-lightbox .lightbox-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px}.photo-lightbox .lightbox-date-navigation{width:fit-content;margin:0;border-color:#314244;background:#182426;color:#b7c9c5}.photo-lightbox .lightbox-date-navigation button{background:#223336;color:#e8f0ee;border-color:#43585a}.photo-lightbox .lightbox-assess{background:#182426;border-color:#314244;color:#b7c9c5}.photo-lightbox .lightbox-assess:hover{filter:none;background:#223336}.photo-lightbox .assess-chip small{color:#8a9aa0}.photo-lightbox .assess-chip.is-set small{color:#9eb0ad}.photo-lightbox .assess-chip.is-set b{color:#e8f0ee}
 @media(max-width:700px){.patient-picker{grid-template-columns:1fr}.edit-mode-bar{top:99px}.angle-nav{font-size:.78rem}.wound-photo-meta,.photo-lightbox .lightbox-meta{flex-direction:column;align-items:stretch}.wound-photo-meta .photo-date-navigation,.wound-photo-meta .assess-panel{width:100%;margin-left:0;justify-content:space-between}.wound-photo-meta .assess-panel{max-width:none}.assess-dims{grid-template-columns:1fr}.lightbox-context{margin-right:40px}.photo-lightbox .lightbox-assess{max-width:100%}}
-.day-counts{margin:.15rem 0 0;color:#0f4f44;font-size:.95rem;font-weight:800}#date-view.is-loading{min-height:240px}.date-loading{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;padding:36px 16px;color:var(--muted);font-weight:750}.date-spinner{width:34px;height:34px;border:3px solid #d5e4e0;border-top-color:var(--brand);border-radius:50%;animation:date-spin .7s linear infinite}@keyframes date-spin{to{transform:rotate(360deg)}}.pod-board{display:flex;align-items:stretch}.pod-labels{flex:none;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;width:10.75rem;padding:13px 10px 13px 12px;background:#fff}.pod-row-label{display:block;width:100%;height:28px;min-height:28px;padding:0;overflow:hidden;border:0;border-radius:0;background:transparent;color:#0f4f44;font-size:.72rem;font-weight:800;line-height:28px;text-align:right;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-overflow:ellipsis;white-space:nowrap}.pod-row-label:hover{background:transparent;color:#0a454f;filter:none}.pod-scroll{display:flex;align-items:stretch;gap:7px;overflow-x:auto;flex:1;min-width:0;padding:13px;scrollbar-width:thin}.pod-scroll.has-note-badges{padding-bottom:52px}.pod-day{display:flex;flex-direction:column;align-items:stretch;min-width:68px;flex:none}.pod-day[hidden]{display:none}.pod-day .date-chip{min-width:68px}.pod-stack{display:flex;flex-direction:column;gap:4px;margin-top:auto;padding-top:6px}.pod-stack.has-badge-gap{padding-top:42px}.pod-num{display:grid;place-items:center;height:28px;min-width:52px;border-radius:7px;background:#e7f3ef;color:#0f4f44;font-size:.8rem;font-weight:800;font-variant-numeric:tabular-nums}.pod-num.is-blank{background:transparent}.pod-actions{padding:0 12px 12px}.pod-actions .small{min-height:32px}dialog form.count-row-remove{margin-top:1.5rem}
+.day-counts{margin:.15rem 0 0;color:#0f4f44;font-size:.95rem;font-weight:800}#date-view{overflow-anchor:none}.wound-card{overflow-anchor:none}#date-view.is-loading{min-height:240px}.date-loading{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;padding:36px 16px;color:var(--muted);font-weight:750}.date-spinner{width:34px;height:34px;border:3px solid #d5e4e0;border-top-color:var(--brand);border-radius:50%;animation:date-spin .7s linear infinite}@keyframes date-spin{to{transform:rotate(360deg)}}.pod-board{display:flex;align-items:stretch}.pod-labels{flex:none;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;width:10.75rem;padding:13px 10px 13px 12px;background:#fff}.pod-row-label{display:block;width:100%;height:28px;min-height:28px;padding:0;overflow:hidden;border:0;border-radius:0;background:transparent;color:#0f4f44;font-size:.72rem;font-weight:800;line-height:28px;text-align:right;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-overflow:ellipsis;white-space:nowrap}.pod-row-label:hover{background:transparent;color:#0a454f;filter:none}.pod-scroll{display:flex;align-items:stretch;gap:7px;overflow-x:auto;flex:1;min-width:0;padding:13px;scrollbar-width:thin}.pod-scroll.has-note-badges{padding-bottom:52px}.pod-day{display:flex;flex-direction:column;align-items:stretch;min-width:68px;flex:none}.pod-day[hidden]{display:none}.pod-day .date-chip{min-width:68px}.pod-stack{display:flex;flex-direction:column;gap:4px;margin-top:auto;padding-top:6px}.pod-stack.has-badge-gap{padding-top:42px}.pod-num{display:grid;place-items:center;height:28px;min-width:52px;border-radius:7px;background:#e7f3ef;color:#0f4f44;font-size:.8rem;font-weight:800;font-variant-numeric:tabular-nums}.pod-num.is-blank{background:transparent}.pod-actions{padding:0 12px 12px}.pod-actions .small{min-height:32px}dialog form.count-row-remove{margin-top:1.5rem}
 .sidebar-toggle{display:none}.side-title-actions{display:flex;align-items:center;gap:6px;flex:none}
 /* Controlled visual contrast: preserve the clinical palette and depth while
    giving neighboring regions intentionally different visual roles. */
@@ -1693,8 +1693,8 @@ const showModal=id=>document.getElementById(id)?.showModal();
   mq.addEventListener('change',apply);
   apply();
 })();
-(function(){
-  const cards=[...document.querySelectorAll('.wound-card[data-wound-id]')];
+function bindWoundCards(root=document){
+  const cards=[...root.querySelectorAll('.wound-card[data-wound-id]')];
   if(!cards.length)return;
   function storageKey(card){
     return 'postop-wound-collapsed:'+[card.dataset.patientId||'',card.dataset.libraryId||'',card.dataset.woundId||''].join(':');
@@ -1720,6 +1720,11 @@ const showModal=id=>document.getElementById(id)?.showModal();
     if(label)label.textContent=collapsed?'Expand':'Collapse';
   }
   cards.forEach(card=>{
+    if(card.dataset.collapseBound==='1'){
+      apply(card,readCollapsed(card));
+      return;
+    }
+    card.dataset.collapseBound='1';
     apply(card,readCollapsed(card));
     card.querySelector('.wound-collapse')?.addEventListener('click',()=>{
       const next=!card.classList.contains('is-collapsed');
@@ -1727,7 +1732,8 @@ const showModal=id=>document.getElementById(id)?.showModal();
       apply(card,next);
     });
   });
-})();
+}
+bindWoundCards();
 const accountTrigger=document.getElementById('account-trigger');
 if(accountTrigger)document.querySelector('.top-actions')?.prepend(accountTrigger);
 const editMode=document.getElementById('editMode');
@@ -1994,6 +2000,64 @@ function retargetAngleDateFlash(){
   const btn=card?.querySelector(tip.dataset.side==='prev'?'.angle-date-prev':'.angle-date-next');
   if(btn)placeAngleDateFlash(btn);
 }
+let woundScrollPin=null;
+function woundCardById(woundId){
+  if(!woundId)return null;
+  return document.querySelector(`#date-view .wound-card[data-wound-id="${CSS.escape(woundId)}"]`);
+}
+function clearWoundScrollPin(){
+  if(!woundScrollPin)return;
+  if(woundScrollPin.timer)clearTimeout(woundScrollPin.timer);
+  woundScrollPin.mo?.disconnect();
+  woundScrollPin=null;
+}
+function pinWoundCard(woundId,cardTop){
+  if(!woundId||cardTop==null||!Number.isFinite(cardTop))return;
+  const card=woundCardById(woundId);
+  if(!card)return false;
+  const delta=card.getBoundingClientRect().top-cardTop;
+  if(Math.abs(delta)>0.5)window.scrollTo(window.scrollX,window.scrollY+delta);
+  return true;
+}
+function focusWoundCard(card){
+  if(!card)return;
+  if(!card.hasAttribute('tabindex'))card.tabIndex=-1;
+  try{card.focus({preventScroll:true});}catch(e){try{card.focus();}catch(err){}}
+}
+function scheduleWoundScrollPin(woundId,cardTop){
+  clearWoundScrollPin();
+  if(!woundId||cardTop==null||!Number.isFinite(cardTop))return;
+  const run=()=>pinWoundCard(woundId,cardTop);
+  run();
+  requestAnimationFrame(()=>{
+    run();
+    requestAnimationFrame(run);
+  });
+  const root=document.getElementById('date-view');
+  const mo=root?new MutationObserver(run):null;
+  mo?.observe(root,{subtree:true,childList:true,attributes:true});
+  root?.querySelectorAll('img').forEach(img=>{
+    if(img.complete)return;
+    img.addEventListener('load',run,{once:true});
+    img.addEventListener('error',run,{once:true});
+  });
+  const timer=setTimeout(()=>clearWoundScrollPin(),1800);
+  woundScrollPin={mo,timer};
+  const card=woundCardById(woundId);
+  focusWoundCard(card);
+  retargetAngleDateFlash();
+  run();
+}
+function releaseDateViewFocus(view){
+  const active=document.activeElement;
+  if(active&&view?.contains(active)){
+    try{active.blur();}catch(e){}
+  }
+  const again=document.activeElement;
+  if(again&&(again===view||view?.contains(again)||again===document.getElementById('main'))){
+    try{again.blur();}catch(e){}
+  }
+}
 function visitPhotoDate(set,delta,button){
   const dates=photoDatesFor(set);if(dates.length<2)return;
   const current=Math.max(0,dates.indexOf(set.dataset.date||''));
@@ -2069,15 +2133,15 @@ async function loadDate(href,options={}){
   const height=view.getBoundingClientRect().height;
   const restoreFocus=document.activeElement?.matches?.('a.date-chip, .month-nav a')||false;
   const keepX=window.scrollX,keepY=window.scrollY;
-  if(options.scrollWound){
-    const active=document.activeElement;
-    if(active&&view.contains(active))active.blur();
-  }
+  if(options.scrollWound)releaseDateViewFocus(view);
   view.classList.add('is-loading');
   view.style.minHeight=Math.max(height,240)+'px';
   view.setAttribute('aria-busy','true');
-  view.innerHTML='<div class="date-loading" role="status"><span class="date-spinner" aria-hidden="true"></span><span>Loading this date</span></div>';
-  if(options.scrollWound)window.scrollTo(keepX,keepY);
+  view.innerHTML='<div class="date-loading" role="status" aria-live="off"><span class="date-spinner" aria-hidden="true"></span><span>Loading this date</span></div>';
+  if(options.scrollWound){
+    releaseDateViewFocus(view);
+    window.scrollTo(keepX,keepY);
+  }
   const pendingDate=next.searchParams.get('date');
   if(pendingDate)markCurrentDate(pendingDate);
   try{
@@ -2118,7 +2182,9 @@ async function loadDate(href,options={}){
       if(popover&&trigger){popover.hidden=false;trigger.setAttribute('aria-expanded','true')}
     }
     view.replaceWith(newView);
-    document.getElementById('date-view')?.querySelectorAll('.angle-set').forEach(bindAngleSet);
+    const liveDateView=document.getElementById('date-view');
+    liveDateView?.querySelectorAll('.angle-set').forEach(bindAngleSet);
+    bindWoundCards(liveDateView||document);
     document.getElementById('library-dialogs')?.replaceWith(newDialogs);
     document.querySelectorAll('#library-dialogs .assess-fields').forEach(bindAssessFields);
     const liveSwitch=document.querySelector('.view-switch');
@@ -2132,28 +2198,21 @@ async function loadDate(href,options={}){
     paintNoteFilter();
     revealCurrentDate();
     if(options.push!==false)history.pushState({dateView:1},'',next.pathname+next.search+next.hash);
+    if(options.scrollWound)releaseDateViewFocus(liveDateView);
     const timelineNow=document.querySelector('.timeline');
     if(anchorTop!==null&&timelineNow)window.scrollTo(scrollX,scrollY+(timelineNow.getBoundingClientRect().top-anchorTop));
     else window.scrollTo(scrollX,scrollY);
-    if(options.scrollWound&&options.scrollCardTop!=null){
-      const card=document.querySelector(`#date-view .wound-card[data-wound-id="${CSS.escape(options.scrollWound)}"]`);
-      if(card){
-        const delta=card.getBoundingClientRect().top-options.scrollCardTop;
-        if(delta)window.scrollTo(window.scrollX,window.scrollY+delta);
-      }
-    }
-    if(options.scrollWound){
-      retargetAngleDateFlash();
-      const card=document.querySelector(`#date-view .wound-card[data-wound-id="${CSS.escape(options.scrollWound)}"]`);
-      if(card&&options.scrollCardTop!=null){
-        const delta=card.getBoundingClientRect().top-options.scrollCardTop;
-        if(delta)window.scrollTo(window.scrollX,window.scrollY+delta);
-      }
-    }
     const loaded=next.searchParams.get('date');
     const status=document.getElementById('date-view-status');
-    if(status&&loaded)status.textContent='Showing '+lightboxDateLabel(loaded);
-    if(restoreFocus)document.querySelector('.date-chip.current')?.focus({preventScroll:true});
+    if(status&&loaded){
+      const live=status.getAttribute('aria-live');
+      status.setAttribute('aria-live','off');
+      status.textContent='Showing '+lightboxDateLabel(loaded);
+      if(live!==null)status.setAttribute('aria-live',live);
+      else status.removeAttribute('aria-live');
+    }
+    if(options.scrollWound)scheduleWoundScrollPin(options.scrollWound,options.scrollCardTop);
+    else if(restoreFocus)document.querySelector('.date-chip.current')?.focus({preventScroll:true});
   }catch(error){
     if(error?.name==='AbortError'||seq!==dateLoadSeq)return;
     location.assign(next.href);
