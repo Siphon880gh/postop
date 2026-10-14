@@ -818,7 +818,12 @@ function &library(array &$d,string $id): array { foreach($d['libraries'] as &$x)
 function &wound(array &$lib,string $id): array { foreach($lib['wounds'] as &$x) if($x['id']===$id)return $x; fail('Wound not found.',404); }
 function remove_tree(string $path,string $scope): void { $realBase=realpath($scope); $real=realpath($path); if(!$real||!$realBase||!str_starts_with($real.DIRECTORY_SEPARATOR,$realBase.DIRECTORY_SEPARATOR)) return; if(is_link($real)) fail('Refusing to delete linked storage.',400); $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($real,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST); foreach($it as $f){if($f->isLink())fail('Refusing to delete linked storage.',400); $f->isDir()?rmdir($f->getPathname()):unlink($f->getPathname());} rmdir($real); }
 
-session_name('skin_wound_viewer'); session_start(['cookie_httponly'=>true,'cookie_samesite'=>'Strict','use_strict_mode'=>true]);
+const SESSION_IDLE_SECONDS=43200;
+$sessionDir=$root.'/sessions';
+if((is_dir($sessionDir)||@mkdir($sessionDir,0700,true))&&is_writable($sessionDir))session_save_path($sessionDir);
+ini_set('session.gc_maxlifetime',(string)SESSION_IDLE_SECONDS);
+session_name('skin_wound_viewer'); session_start(['cookie_httponly'=>true,'cookie_samesite'=>'Strict','use_strict_mode'=>true,'cookie_lifetime'=>SESSION_IDLE_SECONDS,'gc_maxlifetime'=>SESSION_IDLE_SECONDS]);
+if(($_SESSION['auth']??false)===true&&!isset($_GET['action'])&&session_status()===PHP_SESSION_ACTIVE)setcookie(session_name(),session_id(),['expires'=>time()+SESSION_IDLE_SECONDS,'path'=>session_get_cookie_params()['path'],'httponly'=>true,'samesite'=>'Strict']);
 $action=$_GET['action']??'';
 if($action==='manifest'){$host=(string)($_SERVER['HTTP_HOST']??'localhost');if(!preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/',$host))$host='localhost';$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$appUrl=$scheme.'://'.$host.(string)($_SERVER['SCRIPT_NAME']??'/index.php');header('Content-Type: application/manifest+json');header('Cache-Control: public, max-age=3600');echo json_encode(['id'=>'./index.php','name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'launch_handler'=>['client_mode'=>'focus-existing'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'related_applications'=>[['platform'=>'webapp','url'=>$appUrl.'?action=manifest','id'=>$appUrl]],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
 if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format']??'')==='png'&&function_exists('imagecreatetruecolor')){header('Content-Type: image/png');$image=imagecreatetruecolor($s,$s);$blue=imagecolorallocate($image,22,78,99);$white=imagecolorallocate($image,255,255,255);imagefilledrectangle($image,0,0,$s,$s,$blue);$stroke=max(10,(int)round($s*.1));$start=(int)round($s*.28);$end=(int)round($s*.72);$middle=(int)round($s*.5);imagefilledrectangle($image,$start,$middle-(int)($stroke/2),$end,$middle+(int)($stroke/2),$white);imagefilledrectangle($image,$middle-(int)($stroke/2),$start,$middle+(int)($stroke/2),$end,$white);imagepng($image);imagedestroy($image);exit;}header('Content-Type: image/svg+xml');echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
@@ -867,7 +872,7 @@ $authed=($_SESSION['auth']??false)===true;
 if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['op']??'')==='login'){
     $username=trim((string)($_POST['username']??''));$password=(string)($_POST['password']??'');$matched=null;
     foreach($accounts as $candidate)if(strcasecmp($candidate['username'],$username)===0&&password_verify($password,$candidate['password_hash'])){$matched=$candidate;break;}
-    if($matched){session_regenerate_id(true);$_SESSION=['auth'=>true,'username'=>$matched['username'],'csrf'=>bin2hex(random_bytes(24))];header('Location: index.php',true,303);exit;}
+    if($matched){session_regenerate_id(true);$_SESSION=['auth'=>true,'username'=>$matched['username'],'csrf'=>bin2hex(random_bytes(24))];$back=(string)($_POST['return_to']??'');if(!preg_match('/^index\.php(\?[^#\s]*)?$/',$back)||str_contains($back,'action='))$back='index.php';header('Location: '.$back,true,303);exit;}
     $_SESSION['login_error']='Incorrect username or password.';header('Location: index.php',true,303);exit;
 }
 if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['op']??'')==='logout'){
@@ -994,7 +999,7 @@ if($action==='sync-manifest'){$d=load_data();$media=[];$bytes=0;foreach($d['libr
 if($action==='replay'){fail('Use the online forms to review and apply pending changes.',409);}
 
 $csrf=$_SESSION['csrf']??'';$loginError=$_SESSION['login_error']??'';unset($_SESSION['login_error']);$flash=$_SESSION['flash']??'';unset($_SESSION['flash']);
-if(!$authed): ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · <?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">Clinical recordkeeping demo</p><h1><?=APP_NAME?></h1><p class="muted">Sign in to review longitudinal wound records.</p><?php if($loginError):?><div class="alert" role="alert" id="login-error"><?=h($loginError)?></div><?php endif?><form method="post"<?=$loginError?' aria-describedby="login-error"':''?>><input type="hidden" name="op" value="login"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form><div class="demo"><strong>Demo-only credentials</strong><button type="button" class="demo-row" data-user="admin" data-pass="password"><span class="demo-cred"><code>admin</code> / <code>password</code></span><small>Sample Patient</small></button></div></section></main><?=app_footer()?><script>document.querySelectorAll('.demo-row').forEach(function(btn){btn.addEventListener('click',function(){var f=document.querySelector('form');var u=f.querySelector('[name=username]');var p=f.querySelector('[name=password]');u.value=btn.dataset.user;p.value=btn.dataset.pass;u.focus()});});</script></body></html><?php exit;endif;
+if(!$authed): ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · <?=APP_NAME?></title><style><?=css()?></style></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" class="login" tabindex="-1"><section class="login-card"><div class="brandmark" aria-hidden="true">+</div><p class="eyebrow">Clinical recordkeeping demo</p><h1><?=APP_NAME?></h1><p class="muted">Sign in to review longitudinal wound records.</p><?php if($loginError):?><div class="alert" role="alert" id="login-error"><?=h($loginError)?></div><?php endif?><form method="post"<?=$loginError?' aria-describedby="login-error"':''?>><input type="hidden" name="op" value="login"><input type="hidden" name="return_to" value="<?=h(current_page_url())?>"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form><div class="demo"><strong>Demo-only credentials</strong><button type="button" class="demo-row" data-user="admin" data-pass="password"><span class="demo-cred"><code>admin</code> / <code>password</code></span><small>Sample Patient</small></button></div></section></main><?=app_footer()?><script>document.querySelectorAll('.demo-row').forEach(function(btn){btn.addEventListener('click',function(){var f=document.querySelector('form');var u=f.querySelector('[name=username]');var p=f.querySelector('[name=password]');u.value=btn.dataset.user;p.value=btn.dataset.pass;u.focus()});});</script></body></html><?php exit;endif;
 $d=load_data();$profile=patient_profile($d);$patient=isset($_GET['patient']);$view=(($_GET['view']??'')==='gallery')?'gallery':'day';$galleryOrder=gallery_order();$selectedId=(string)($_GET['library']??($d['libraries'][0]['id']??''));$selected=null;foreach($d['libraries'] as $l)if($l['id']===$selectedId)$selected=$l;if($selected){$date=(string)($_GET['date']??'');if($date===''||$date<$selected['start_date']||$date>gmdate('Y-m-d'))$date=latest_relevant_date($selected);}else{$date=gmdate('Y-m-d');}
 ?><!doctype html><html lang="en" data-revision="<?=h($d['revision'])?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#164e63"><link rel="manifest" href="index.php?action=manifest"><title><?=APP_NAME?></title><style><?=css()?></style></head><body data-can-edit="<?=account_can_edit()?'1':'0'?>"><a class="skip-link" href="#main">Skip to main content</a><header class="topbar"><a class="wordmark" href="index.php"><span aria-hidden="true">+</span><?=APP_NAME?></a><div class="top-actions"><button type="button" id="reviewPending" class="ghost small" hidden>Review and sync 0 changes</button><?php if(account_can_edit()):?><button type="button" id="editMode" class="edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit Mode</span><small>Off</small></button><?php endif?><span id="network" class="status" role="status" aria-live="polite">Online</span><form method="post"><input type="hidden" name="op" value="logout"><input type="hidden" name="csrf" value="<?=h($csrf)?>"><button class="ghost" type="submit">Log out</button></form></div></header><?php if($flash):?><div class="toast" role="status"><?=h($flash)?></div><?php endif?><main id="main" class="app" tabindex="-1">
 <?=account_modal($account,$csrf,current_page_url())?><?=account_can_edit()?edit_mode_bar():''?><?php if(!$patient):?><section class="pagehead"><div><p class="eyebrow">Workspace</p><h1>Patients</h1></div></section><?=patient_picker(patient_records(),$csrf)?>
@@ -2145,11 +2150,25 @@ async function loadDate(href,options={}){
   const pendingDate=next.searchParams.get('date');
   if(pendingDate)markCurrentDate(pendingDate);
   try{
-    const response=await fetch(next.href,{cache:'no-store',signal:controller.signal});
-    if(!response.ok)throw new Error('Could not load this date');
-    const html=await response.text();
+    let doc=null,lastError=null;
+    for(let attempt=0;attempt<2&&!doc;attempt++){
+      try{
+        if(attempt)await new Promise(ok=>setTimeout(ok,400));
+        const response=await fetch(next.href,{cache:'no-store',credentials:'same-origin',signal:controller.signal});
+        if(!response.ok)throw new Error('Could not load this date ('+response.status+')');
+        const parsed=new DOMParser().parseFromString(await response.text(),'text/html');
+        if(!parsed.getElementById('date-view')){
+          if(parsed.querySelector('input[name="password"]'))throw Object.assign(new Error('Signed out'),{signedOut:true});
+          throw new Error('Date view unavailable');
+        }
+        doc=parsed;
+      }catch(error){
+        if(error?.name==='AbortError'||error?.signedOut)throw error;
+        lastError=error;
+      }
+    }
+    if(!doc)throw lastError||new Error('Could not load this date');
     if(seq!==dateLoadSeq)return;
-    const doc=new DOMParser().parseFromString(html,'text/html');
     const newView=doc.getElementById('date-view');
     const newNotes=doc.getElementById('day-notes-slot');
     const newDialogs=doc.getElementById('library-dialogs');
@@ -2215,9 +2234,35 @@ async function loadDate(href,options={}){
     else if(restoreFocus)document.querySelector('.date-chip.current')?.focus({preventScroll:true});
   }catch(error){
     if(error?.name==='AbortError'||seq!==dateLoadSeq)return;
+    rememberDateScroll(next,options);
     location.assign(next.href);
   }
 }
+const DATE_SCROLL_KEY='postop-date-scroll';
+function rememberDateScroll(next,options){
+  try{
+    sessionStorage.setItem(DATE_SCROLL_KEY,JSON.stringify({
+      search:next.search,wound:options.scrollWound||'',cardTop:options.scrollCardTop??null,
+      x:window.scrollX,y:window.scrollY,at:Date.now()
+    }));
+  }catch(e){}
+}
+function restoreDateScroll(){
+  let saved=null;
+  try{saved=JSON.parse(sessionStorage.getItem(DATE_SCROLL_KEY)||'null');sessionStorage.removeItem(DATE_SCROLL_KEY);}catch(e){}
+  if(!saved||!document.getElementById('date-view'))return;
+  if(Date.now()-(saved.at||0)>30*60*1000)return;
+  const want=new URLSearchParams(saved.search),have=new URLSearchParams(location.search);
+  if(want.get('date')!==have.get('date')||want.get('library')!==have.get('library'))return;
+  if('scrollRestoration'in history)history.scrollRestoration='manual';
+  if(saved.wound&&woundCardById(saved.wound)){
+    const card=woundCardById(saved.wound);
+    const top=card.getBoundingClientRect().top+window.scrollY;
+    window.scrollTo(saved.x||0,Math.max(0,top-(Number.isFinite(saved.cardTop)?saved.cardTop:120)));
+    scheduleWoundScrollPin(saved.wound,card.getBoundingClientRect().top);
+  }else window.scrollTo(saved.x||0,saved.y||0);
+}
+restoreDateScroll();
 document.addEventListener('click',event=>{
   const link=event.target.closest?.('a.date-chip, .month-nav a');
   if(!link||event.defaultPrevented||event.button!==0)return;
