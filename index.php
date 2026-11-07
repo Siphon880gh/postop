@@ -1447,6 +1447,31 @@ function month_nav_date(DateTimeImmutable $cur,int $delta,DateTimeImmutable $sta
     if($target->format('Y-m')!==$base->format('Y-m'))return null;
     return $target->format('Y-m-d');
 }
+function timeline_months(array $l,string $date,string $view,DateTimeImmutable $start,DateTimeImmutable $end):string{
+    $selectedYear=(int)substr($date,0,4);
+    $out='<div class="timeline-months" hidden>';
+    for($year=(int)$start->format('Y');$year<=(int)$end->format('Y');$year++){
+        $out.='<section data-timeline-year="'.$year.'"'.($year===$selectedYear?'':' hidden').'><div class="timeline-year-nav"><button type="button" data-year-step="-1" aria-label="Previous year"'.($year===(int)$start->format('Y')?' disabled':'').'>←</button><strong>'.$year.'</strong><button type="button" data-year-step="1" aria-label="Next year"'.($year===(int)$end->format('Y')?' disabled':'').'>→</button></div><div class="timeline-month-grid">';
+        for($m=1;$m<=12;$m++){
+            $month=sprintf('%04d-%02d',$year,$m);
+            if($month<$start->format('Y-m')||$month>$end->format('Y-m'))continue;
+            $first=maxdate($start,new DateTimeImmutable($month.'-01'));
+            $last=mindate($end,new DateTimeImmutable($month.'-01 last day of this month'));
+            $photos=0;$notes=0;$meter='';
+            for($day=$first;$day<=$last;$day=$day->modify('+1 day')){
+                $ds=$day->format('Y-m-d');$n=photo_count_on_date($l,$ds);$photos+=$n;$notes+=notes_count_on_date($l,$ds);
+                $meter.='<i'.($n?' class="active"':'').'></i>';
+            }
+            // Keep the selected date when reopening its month; otherwise mirror the reference: today or first available day.
+            $current=$month===substr($date,0,7);
+            $target=$current?$date:($month===$end->format('Y-m')?$end->format('Y-m-d'):$first->format('Y-m-d'));
+            $summary=photo_word($photos).' · '.$notes.' note'.($notes===1?'':'s');
+            $out.='<a class="timeline-month'.($current?' current':'').'" href="'.app_url($l['id'],$target,$view).'"'.($current?' aria-current="date"':'').' aria-label="'.h($first->format('F Y').', '.$summary).'"><strong>'.$first->format('M').'</strong><div class="timeline-month-meter" aria-hidden="true">'.$meter.'</div><span>'.h($summary).'</span></a>';
+        }
+        $out.='</div></section>';
+    }
+    return $out.'</div>';
+}
 function timeline(array $l,string $date,string $view='day'):string{
     $filter=note_filter_query();$active=$filter!=='';
     $start=new DateTimeImmutable($l['start_date']);$end=new DateTimeImmutable('today');$cur=new DateTimeImmutable($date);$month=$cur->format('Y-m');
@@ -1455,7 +1480,7 @@ function timeline(array $l,string $date,string $view='day'):string{
     $prevMonth=month_nav_date($cur,-1,$start,$end);$nextMonth=month_nav_date($cur,1,$start,$end);
     $prevLink=$prevMonth!==null?'<a href="'.app_url($l['id'],$prevMonth,$view).'">Previous month</a>':'<span class="month-nav-disabled">Previous month</span>';
     $nextLink=$nextMonth!==null?'<a href="'.app_url($l['id'],$nextMonth,$view).'">Next month</a>':'<span class="month-nav-disabled">Next month</span>';
-    $out='<nav class="timeline" aria-label="Date timeline"><div class="month-nav"><a href="'.app_url($l['id'],$start->format('Y-m-d'),$view).'">First day</a>'.$prevLink.'<strong>'.$cur->format('F Y').'</strong>'.$nextLink.'<a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div>';
+    $out='<nav class="timeline" aria-label="Date timeline"><div class="timeline-scale-heading"><strong data-timeline-title data-day-title="'.h($cur->format('F Y')).'">'.$cur->format('F Y').'</strong><div class="timeline-scale" role="group" aria-label="Timeline scale"><button type="button" data-timeline-zoom="months" aria-pressed="false">Months</button><button type="button" data-timeline-zoom="days" aria-pressed="true">Days</button></div></div>'.timeline_months($l,$date,$view,$start,$end).'<div class="timeline-days"><div class="month-nav"><a href="'.app_url($l['id'],$start->format('Y-m-d'),$view).'">First day</a>'.$prevLink.'<strong>'.$cur->format('F Y').'</strong>'.$nextLink.'<a href="'.app_url($l['id'],gmdate('Y-m-d'),$view).'">Today</a></div>';
     $days='';$hasNotes=false;
     for($x=$first;$x<=$last;$x=$x->modify('+1 day')){
         $ds=$x->format('Y-m-d');$photos=photo_count_on_date($l,$ds);$nn=notes_count_on_date($l,$ds);$noteText=note_search_text_on_date($l,$ds);if($noteText!=='')$hasNotes=true;
@@ -1492,7 +1517,7 @@ function timeline(array $l,string $date,string $view='day'):string{
         $out.='<div class="date-row">'.$days.$filterBtn.'</div>';
     }
     if($showFilter)$out.='<div id="note-filter-popover" class="timeline-note-filter-popover" role="dialog" aria-label="Filter notes" hidden><div class="note-filter-field"><label class="sr-only" for="note-filter-input">Filter notes</label><input type="search" id="note-filter-input" placeholder="Filter notes" autocomplete="off" value="'.h($filter).'"><button type="button" class="note-filter-help" onclick="showModal(\'note-filter-help\')" aria-label="How note filtering works">i</button></div>'.note_filter_presets_html().'<div class="note-filter-meta"><span id="note-filter-status" role="status" aria-live="polite"></span><button type="button" id="note-filter-clear" class="ghost small"'.($active?'':' hidden').'>Clear</button></div></div>';
-    return $out.'</nav>';
+    return $out.'</div></nav>';
 }
 function count_row_dialog(string $csrf,array $l,string $date,?array $row=null):string{
     $id=$row?'count-row-'.h($row['id']):'count-row-new';
@@ -1676,6 +1701,22 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
   .layout.is-sidebar-collapsed .side-title h2{display:none}
   .layout.is-sidebar-collapsed .sidebar-body{display:none}
 }
+
+/* Accountability-style timeline scale: a quiet segmented control and yearly month overview. */
+.timeline-scale-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.timeline-scale{display:flex;border:1px solid var(--line);padding:3px;gap:3px;background:var(--paper);border-radius:8px}
+.timeline-scale button{border:0;min-height:44px;padding:6px 13px;background:transparent;color:var(--muted);box-shadow:none}
+.timeline-scale button[aria-pressed="true"]{background:var(--brand);color:white}
+.timeline-months{padding:0 16px 16px}.timeline-year-nav{display:flex;align-items:center;justify-content:space-between;margin:14px 0;gap:12px}
+.timeline-year-nav button{min-width:44px;min-height:44px}.timeline-year-nav button:disabled{opacity:.4;cursor:default}
+.timeline-month-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.timeline-month{display:block;min-width:0;min-height:100px;padding:15px;background:var(--paper);border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.timeline-month:hover,.timeline-month.current{border-color:var(--brand)}.timeline-month.current{background:var(--soft)}.timeline-month strong{font-size:1.3rem}
+.timeline-month span{display:block;font-size:.75rem;color:var(--muted);margin-top:12px}.timeline-month-meter{display:flex;gap:2px;margin-top:10px;height:15px;align-items:stretch}
+.timeline-month-meter i{flex:1;min-width:0;background:var(--line);border-radius:2px}.timeline-month-meter i.active{background:var(--brand)}
+.timeline-days[hidden],.timeline-months[hidden],[data-timeline-year][hidden]{display:none!important}
+@media(max-width:980px){.timeline-month-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.timeline-month-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.timeline-scale-heading{flex-wrap:wrap}}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
@@ -2144,7 +2185,7 @@ async function loadDate(href,options={}){
   const controller=new AbortController();
   dateLoadController=controller;
   const height=view.getBoundingClientRect().height;
-  const restoreFocus=document.activeElement?.matches?.('a.date-chip, .month-nav a')||false;
+  const restoreFocus=document.activeElement?.matches?.('a.date-chip, .month-nav a, a.timeline-month')||false;
   const keepX=window.scrollX,keepY=window.scrollY;
   if(options.scrollWound)releaseDateViewFocus(view);
   view.classList.add('is-loading');
@@ -2271,14 +2312,47 @@ function restoreDateScroll(){
   }else window.scrollTo(saved.x||0,saved.y||0);
 }
 restoreDateScroll();
+// Scale changes are local UI state: they never change patient, library, date or wound state.
+function setTimelineZoom(timeline,scale){
+  const months=scale==='months';
+  timeline.querySelector('.timeline-days').hidden=months;
+  timeline.querySelector('.timeline-months').hidden=!months;
+  timeline.querySelectorAll('[data-timeline-zoom]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.timelineZoom===scale)));
+  const title=timeline.querySelector('[data-timeline-title]');
+  title.textContent=months?'The long view':title.dataset.dayTitle;
+  if(!months)revealCurrentDate();
+}
 document.addEventListener('click',event=>{
-  const link=event.target.closest?.('a.date-chip, .month-nav a');
+  const zoom=event.target.closest?.('[data-timeline-zoom]');
+  if(zoom){
+    const timeline=zoom.closest('.timeline');
+    if(zoom.dataset.timelineZoom==='months'){
+      const year=timeline.querySelector('[data-timeline-title]').dataset.dayTitle.match(/\d{4}/)?.[0];
+      timeline.querySelectorAll('[data-timeline-year]').forEach(panel=>panel.hidden=panel.dataset.timelineYear!==year);
+    }
+    setTimelineZoom(timeline,zoom.dataset.timelineZoom);
+    zoom.focus({preventScroll:true});
+    return;
+  }
+  const step=event.target.closest?.('[data-year-step]');
+  if(step&&!step.disabled){
+    const panel=step.closest('[data-timeline-year]'),timeline=step.closest('.timeline');
+    const next=timeline.querySelector('[data-timeline-year="'+(Number(panel.dataset.timelineYear)+Number(step.dataset.yearStep))+'"]');
+    if(next){panel.hidden=true;next.hidden=false;const focus=next.querySelector('[data-year-step="'+step.dataset.yearStep+'"]');(focus.disabled?next.querySelector('[data-year-step]:not(:disabled)'):focus)?.focus({preventScroll:true});}
+  }
+});
+document.addEventListener('click',event=>{
+  const link=event.target.closest?.('a.date-chip, .month-nav a, a.timeline-month');
   if(!link||event.defaultPrevented||event.button!==0)return;
   if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
   if(link.target&&link.target!=='_self')return;
   const url=new URL(link.href,location.href);
   if(!document.getElementById('date-view')||!sameLibraryDate(url,currentPageUrl()))return;
   event.preventDefault();
+  if(link.matches('a.timeline-month')){
+    setTimelineZoom(link.closest('.timeline'),'days');
+    if(url.searchParams.get('date')===currentPageUrl().searchParams.get('date'))document.querySelector('.date-chip.current')?.focus({preventScroll:true});
+  }
   loadDate(link.href);
 });
 if(document.getElementById('date-view')){
