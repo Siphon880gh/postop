@@ -825,7 +825,19 @@ ini_set('session.gc_maxlifetime',(string)SESSION_IDLE_SECONDS);
 session_name('skin_wound_viewer'); session_start(['cookie_httponly'=>true,'cookie_samesite'=>'Strict','use_strict_mode'=>true,'cookie_lifetime'=>SESSION_IDLE_SECONDS,'gc_maxlifetime'=>SESSION_IDLE_SECONDS]);
 if(($_SESSION['auth']??false)===true&&!isset($_GET['action'])&&session_status()===PHP_SESSION_ACTIVE)setcookie(session_name(),session_id(),['expires'=>time()+SESSION_IDLE_SECONDS,'path'=>session_get_cookie_params()['path'],'httponly'=>true,'samesite'=>'Strict']);
 $action=$_GET['action']??'';
-define('APP_VERSION',substr(sha1((string)@filemtime(__FILE__).':'.(string)@filesize(__FILE__)),0,10));
+/* APP_VERSION hashes the contents of every shell file so any edit (not just mtime/size of index.php) is a new release. CSS, JS, the service worker and the offline-plan list all live in index.php. */
+function app_shell_files(): array { return [__FILE__]; }
+function app_version(): string {
+    static $v=null; if($v!==null)return $v;
+    $h=hash_init('sha1');
+    foreach(app_shell_files() as $f){ hash_update($h,$f."\0"); hash_update($h,is_file($f)?(string)file_get_contents($f):'-'); }
+    return $v=substr(hash_final($h),0,10);
+}
+function app_asset_url(string $url): string {
+    if(preg_match('/(?:\?|&)v=/',$url))return $url;
+    return $url.(strpos($url,'?')===false?'?':'&').'v='.APP_VERSION;
+}
+define('APP_VERSION',app_version());
 if($action==='version'){header('Content-Type: application/json');header('Cache-Control: no-store, no-cache, must-revalidate');echo json_encode(['version'=>APP_VERSION]);exit;}
 if($action==='manifest'){$host=(string)($_SERVER['HTTP_HOST']??'localhost');if(!preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/',$host))$host='localhost';$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$appUrl=$scheme.'://'.$host.(string)($_SERVER['SCRIPT_NAME']??'/index.php');header('Content-Type: application/manifest+json');header('Cache-Control: no-cache, must-revalidate');echo json_encode(['id'=>'./index.php','version'=>APP_VERSION,'name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'launch_handler'=>['client_mode'=>'focus-existing'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'related_applications'=>[['platform'=>'webapp','url'=>$appUrl.'?action=manifest','id'=>$appUrl]],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
 if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format']??'')==='png'&&function_exists('imagecreatetruecolor')){header('Content-Type: image/png');$image=imagecreatetruecolor($s,$s);$blue=imagecolorallocate($image,22,78,99);$white=imagecolorallocate($image,255,255,255);imagefilledrectangle($image,0,0,$s,$s,$blue);$stroke=max(10,(int)round($s*.1));$start=(int)round($s*.28);$end=(int)round($s*.72);$middle=(int)round($s*.5);imagefilledrectangle($image,$start,$middle-(int)($stroke/2),$end,$middle+(int)($stroke/2),$white);imagefilledrectangle($image,$middle-(int)($stroke/2),$start,$middle+(int)($stroke/2),$end,$white);imagepng($image);imagedestroy($image);exit;}header('Content-Type: image/svg+xml');echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
