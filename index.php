@@ -847,8 +847,22 @@ const CACHE_META='./__swcv-cache-meta';
 const OFFLINE_SHELL='swcv-offline-shell',OFFLINE_STATE='swcv-offline-state',OFFLINE_FLAG='./__swcv-offline-mode';
 let offlineOn=null,offlineIndex=null;
 self.addEventListener('install',event=>event.waitUntil(caches.open(SHELL).then(c=>c.put(CACHE_META,new Response(JSON.stringify({version:APP_VERSION,cachedAt:new Date().toISOString()}),{headers:{'Content-Type':'application/json'}}))).catch(()=>{}).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('swcv-shell-')&&key!==SHELL).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
-self.addEventListener('message',event=>{const m=event.data||{};if(m.type==='swcv-offline-mode'){offlineOn=!!m.on;offlineIndex=null}else if(m.type==='swcv-offline-reindex')offlineIndex=null});
+self.addEventListener('activate',event=>event.waitUntil((async()=>{
+  const keys=await caches.keys();
+  await Promise.all(keys.map(key=>{
+    if(key===SHELL||key===OFFLINE_STATE)return null;
+    if(key.startsWith('swcv-'))return caches.delete(key);
+    return null;
+  }));
+  await self.clients.claim();
+  const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  for(const c of clients)c.postMessage({type:'swcv-caches-cleared',version:APP_VERSION});
+})()));
+self.addEventListener('message',event=>{
+  const m=event.data||{};
+  if(m.type==='swcv-offline-mode'){offlineOn=!!m.on;offlineIndex=null}
+  else if(m.type==='swcv-offline-reindex')offlineIndex=null;
+});
 async function readOfflineMode(){if(offlineOn!==null)return offlineOn;try{const hit=await (await caches.open(OFFLINE_STATE)).match(OFFLINE_FLAG);offlineOn=hit?!!(await hit.json()).on:false}catch(e){offlineOn=false}return offlineOn}
 function isRealResponse(response,request){
   if(!response||!response.ok)return false;
@@ -2718,7 +2732,7 @@ if(network){
 }
 function net(){if(!network)return;network.title='App version '+(document.documentElement.dataset.appVersion||'');network.textContent=navigator.onLine?'Online':'Offline';network.classList.toggle('offline',!navigator.onLine)} addEventListener('online',net);addEventListener('offline',net);net();
 const APP_VERSION=document.documentElement.dataset.appVersion||'';
-if('serviceWorker'in navigator){const hadController=!!navigator.serviceWorker.controller;navigator.serviceWorker.register('index.php?action=service-worker&v='+APP_VERSION,{scope:'./',updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadController)reloadForNewVersion()})}
+if('serviceWorker'in navigator){const hadController=!!navigator.serviceWorker.controller;navigator.serviceWorker.register('index.php?action=service-worker&v='+APP_VERSION,{scope:'./',updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadController)reloadForNewVersion()});navigator.serviceWorker.addEventListener('message',event=>{const m=event.data||{};if(m.type==='swcv-caches-cleared'&&typeof offlineModeOn==='function'&&offlineModeOn()&&navigator.onLine&&!offlineBusy)offlineAutoUpdate(m.version||APP_VERSION)})}
 function reloadForNewVersion(){const key='swcv-reloaded-for';try{if(sessionStorage.getItem(key)===APP_VERSION+'>'+location.href)return;sessionStorage.setItem(key,APP_VERSION+'>'+location.href)}catch(e){}location.replace(location.href)}
 async function checkAppVersion(){if(!navigator.onLine)return;try{const r=await fetch('index.php?action=version&t='+Date.now(),{cache:'no-store',credentials:'same-origin'});if(!r.ok)return;const v=(await r.json()).version;if(v&&APP_VERSION&&v!==APP_VERSION){if(offlineModeOn()){offlineAutoUpdate(v);return}const key='swcv-version-reload';let last='';try{last=sessionStorage.getItem(key)||''}catch(e){}if(last===v)return;try{sessionStorage.setItem(key,v)}catch(e){}location.replace(location.href)}}catch(e){}}
 addEventListener('pageshow',e=>{if(e.persisted)checkAppVersion()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkAppVersion()});checkAppVersion();
@@ -2897,6 +2911,7 @@ async function syncAll(){
   syncBtn.disabled=true;
   try{
     if(navigator.storage?.persist)await navigator.storage.persist();
+    await flushOutbox();
     const manifest=await fillFetch(`index.php?action=sync-manifest&patient=${encodeURIComponent(PATIENT_ID)}`).then(response=>{if(!response.ok)throw Error('Manifest unavailable');return response.json()});
     if(navigator.storage?.estimate){const estimate=await navigator.storage.estimate();if(estimate.quota-estimate.usage<manifest.total_bytes)throw Error('Not enough browser storage for this copy.')}
     const cache=await caches.open(CACHE);
@@ -2942,10 +2957,29 @@ async function syncAll(){
 if(syncBtn)syncBtn.onclick=syncAll;refreshSync();
 const pendingBtn=document.getElementById('reviewPending');
 async function outboxAll(){const d=await db();return new Promise((ok,no)=>{const r=d.transaction('outbox').objectStore('outbox').getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+async function flushOutbox(){
+  const q=await outboxAll().catch(()=>[]);
+  if(!q.length)return {flushed:0,remaining:0,stopped:false,conflict:false};
+  if(!navigator.onLine)return {flushed:0,remaining:q.length,stopped:true,conflict:false};
+  const d=await db();
+  let flushed=0;
+  for(const item of q){
+    const fd=new FormData();
+    for(const [k,v] of item.fields)fd.append(k,v);
+    for(const [k,v] of item.files)fd.append(k,v,v.name);
+    const r=await fetch('index.php',{method:'POST',body:fd,redirect:'manual'});
+    if(r.status===409)return {flushed,remaining:(await outboxAll().catch(()=>[])).length,stopped:true,conflict:true};
+    if(!r.ok&&r.type!=='opaqueredirect')return {flushed,remaining:(await outboxAll().catch(()=>[])).length,stopped:true,conflict:false};
+    await new Promise(ok=>{const t=d.transaction('outbox','readwrite');t.objectStore('outbox').delete(item.id);t.oncomplete=ok});
+    flushed++;
+  }
+  if(typeof pendingStatus==='function')await pendingStatus();
+  return {flushed,remaining:0,stopped:false,conflict:false};
+}
 async function pendingStatus(){if(!pendingBtn)return;const q=await outboxAll().catch(()=>[]);pendingBtn.hidden=!q.length;pendingBtn.textContent=`Review and sync ${q.length} change${q.length===1?'':'s'}`;if(q.length){network.textContent='Pending changes';network.classList.add('offline')}}
 async function stage(form){const fd=new FormData(form),fields=[],files=[];for(const [k,v] of fd){if(v instanceof File&&v.size)files.push([k,v]);else fields.push([k,String(v)])}fields.push(['expected_revision',document.documentElement.dataset.revision]);const item={id:crypto.randomUUID(),created_at:Date.now(),fields,files};const d=await db();await new Promise((ok,no)=>{const t=d.transaction('outbox','readwrite');t.objectStore('outbox').add(item);t.oncomplete=ok;t.onerror=()=>no(t.error)});form.closest('dialog')?.close();await pendingStatus();alert('Pending sync — this change is stored on this device, not yet saved on the server.')}
 document.addEventListener('submit',e=>{const form=e.target;if(form instanceof HTMLFormElement&&form.querySelector('[name=op]')?.value==='logout'&&!form.dataset.confirmed){e.preventDefault();outboxAll().catch(()=>[]).then(q=>{if(!q.length||confirm(`${q.length} pending change${q.length===1?' is':'s are'} only on this device and will be deleted when you log out. Log out anyway?`)){form.dataset.confirmed='1';form.submit()}});return}if((!navigator.onLine||offlineModeOn())&&form instanceof HTMLFormElement&&(form.method||'').toLowerCase()==='post'&&form.querySelector('[name=op]')?.value!=='logout'){e.preventDefault();stage(form).catch(x=>alert('Could not stage this change: '+x.message))}});
-if(pendingBtn)pendingBtn.onclick=async()=>{if(offlineModeOn()){alert('Offline mode is on. Turn it off while you have internet, then sync your pending changes.');return}const q=await outboxAll();if(!q.length)return;if(!confirm(`Review complete. Sync ${q.length} pending change(s) to the server now? Replay stops on a conflict.`))return;const d=await db();for(const item of q){const fd=new FormData();for(const [k,v] of item.fields)fd.append(k,v);for(const [k,v] of item.files)fd.append(k,v,v.name);const r=await fetch('index.php',{method:'POST',body:fd,redirect:'manual'});if(r.status===409){alert('Conflict detected. Pending changes were preserved. Reload the server version or retry after review.');break}if(!r.ok&&r.type!=='opaqueredirect'){alert('Sync stopped. Pending changes were preserved.');break}await new Promise(ok=>{const t=d.transaction('outbox','readwrite');t.objectStore('outbox').delete(item.id);t.oncomplete=ok})}await pendingStatus();if(!(await outboxAll()).length)location.reload()};pendingStatus();
+if(pendingBtn)pendingBtn.onclick=async()=>{if(offlineModeOn()){alert('Offline mode is on. Turn it off while you have internet, then sync your pending changes.');return}const q=await outboxAll();if(!q.length)return;if(!confirm(`Review complete. Sync ${q.length} pending change(s) to the server now? Replay stops on a conflict.`))return;const result=await flushOutbox();if(result.conflict)alert('Conflict detected. Pending changes were preserved. Reload the server version or retry after review.');else if(result.stopped)alert('Sync stopped. Pending changes were preserved.');await pendingStatus();if(!(await outboxAll()).length)location.reload()};pendingStatus();
 /* Offline mode: save everything to this device, then answer every same-origin request from Cache Storage. */
 const OFFLINE_SHELL='swcv-offline-shell',OFFLINE_STATE='swcv-offline-state',OFFLINE_FLAG='./__swcv-offline-mode',OFFLINE_LS='swcv-offline-mode';
 const offlineDialog=document.getElementById('offline-dialog'),offlineInfoDialog=document.getElementById('offline-info');
@@ -2981,6 +3015,19 @@ async function writeOfflineState(state){
   if('caches'in window){try{await (await caches.open(OFFLINE_STATE)).put(OFFLINE_FLAG,new Response(JSON.stringify(state),{headers:{'Content-Type':'application/json'}}))}catch(e){}}
   await offlineSwPost({type:'swcv-offline-mode',on:!!state.on});
   renderOffline();
+}
+async function clearIdbCachedData(){
+  const d=await db();
+  await new Promise((ok,no)=>{const t=d.transaction('meta','readwrite');t.objectStore('meta').clear();t.oncomplete=ok;t.onerror=()=>no(t.error)});
+}
+async function invalidateAppCaches(){
+  if('caches'in window){for(const k of await caches.keys())if(k.startsWith('swcv-'))await caches.delete(k)}
+  await clearIdbCachedData();
+  await offlineSwPost({type:'swcv-offline-reindex'});
+}
+async function prepareFreshOfflineCopy(){
+  await flushOutbox();
+  await invalidateAppCaches();
 }
 function renderOffline(){
   const st=offlineState(),on=!!st.on;
@@ -3071,6 +3118,8 @@ async function runOfflineSave(ids,opts){
     if(navigator.storage?.persist)await navigator.storage.persist().catch(()=>{});
     const plan=opts.plan||await loadOfflinePlan();
     ids=ids.filter(id=>plan.patients.some(p=>p.id===id));
+    say('Saving queued changes, then refreshing the offline copy…');
+    await prepareFreshOfflineCopy();
     const have=await offlineCachedUrls(),items=offlineItems(plan,ids);
     const todo=[],failures=[],assets=new Set();let done=0,bytes=0,quota=false,N=items.length;
     for(const it of items){if(it.kind==='photo'&&have.has(offlineAbs(it.url))){done++;bytes+=it.bytes}else todo.push(it)}
@@ -3111,7 +3160,7 @@ async function turnOfflineOff(){
   else location.reload();
 }
 async function offlineAutoUpdate(version){
-  const key='swcv-offline-autoupdate';try{if(sessionStorage.getItem(key)===version)return;sessionStorage.setItem(key,version)}catch(e){}
+  const key='swcv-offline-autoupdate';const token=String(version||'')+'@'+APP_VERSION;try{if(sessionStorage.getItem(key)===token)return;sessionStorage.setItem(key,token)}catch(e){}
   const st=offlineState();
   try{await runOfflineSave(st.patients||[],{auto:true});location.replace(location.href)}
   catch(e){const s=offlineState();await writeOfflineState(Object.assign({},s,{note:'A new app version is available, but the offline copy could not be updated: '+(e.message||e)+' Use Update offline copy while online.'}))}
@@ -3127,7 +3176,7 @@ offlineDialog?.addEventListener('cancel',e=>{if(offlineBusy){e.preventDefault()}
   if('caches'in window){try{
     const flagRes=await (await caches.open(OFFLINE_STATE)).match(OFFLINE_FLAG),flag=flagRes?await flagRes.json():null;
     const front=await (await caches.open(OFFLINE_SHELL)).match(offlineAbs('index.php'));
-    if(st.on&&!front){await writeOfflineState(Object.assign({},st,{on:false,note:'The browser cleared the offline copy, so Offline mode was turned off. Turn it on again while online.'}));return}
+    if(st.on&&!front){if(navigator.onLine){offlineAutoUpdate(st.version||'rebuild');return}await writeOfflineState(Object.assign({},st,{on:false,note:'The browser cleared the offline copy, so Offline mode was turned off. Turn it on again while online.'}));return}
     if(flag&&!localStorage.getItem(OFFLINE_LS)&&flag.on&&front)await writeOfflineState(flag);
     else if(st.on&&!(flag&&flag.on))await writeOfflineState(st);
   }catch(e){}}
