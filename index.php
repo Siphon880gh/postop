@@ -1825,7 +1825,7 @@ html{background:var(--canvas)}body{background:radial-gradient(circle at 92% 8%,r
 .offline-progress{display:block;width:100%;height:12px;margin-top:12px;accent-color:var(--brand)}.offline-progress[hidden]{display:none}
 .offline-failures{margin-top:8px;font-size:.85rem}.offline-failures ul{max-height:140px;overflow:auto;margin:6px 0 0;padding-left:1.1rem}
 .offline-start{background:var(--brand);color:#fff;border-color:var(--brand)}
-@media(max-width:700px){.offline-mode>span{display:none}.offline-mode{padding:.38rem .6rem}}
+@media(max-width:700px){.offline-mode>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.offline-mode{padding:.38rem .6rem}}
 CSS;}
 function js():string{return <<<'JS'
 const showModal=id=>document.getElementById(id)?.showModal();
