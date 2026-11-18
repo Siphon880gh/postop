@@ -832,22 +832,72 @@ if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format
 if($action==='service-worker'){header('Content-Type: application/javascript');header('Cache-Control: no-cache, no-store, must-revalidate');header('Service-Worker-Allowed: ./');echo "const APP_VERSION='".APP_VERSION."';\n";echo <<<'JS'
 const SHELL='swcv-shell-'+APP_VERSION,PATIENT_CACHE='swcv-patient-';
 const CACHE_META='./__swcv-cache-meta';
+const OFFLINE_SHELL='swcv-offline-shell',OFFLINE_STATE='swcv-offline-state',OFFLINE_FLAG='./__swcv-offline-mode';
+let offlineOn=null,offlineIndex=null;
 self.addEventListener('install',event=>event.waitUntil(caches.open(SHELL).then(c=>c.put(CACHE_META,new Response(JSON.stringify({version:APP_VERSION,cachedAt:new Date().toISOString()}),{headers:{'Content-Type':'application/json'}}))).catch(()=>{}).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('swcv-shell-')&&key!==SHELL).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+self.addEventListener('message',event=>{const m=event.data||{};if(m.type==='swcv-offline-mode'){offlineOn=!!m.on;offlineIndex=null}else if(m.type==='swcv-offline-reindex')offlineIndex=null});
+async function readOfflineMode(){if(offlineOn!==null)return offlineOn;try{const hit=await (await caches.open(OFFLINE_STATE)).match(OFFLINE_FLAG);offlineOn=hit?!!(await hit.json()).on:false}catch(e){offlineOn=false}return offlineOn}
+function normKey(input){const u=new URL(input,self.registration.scope);let path=u.pathname;if(path.endsWith('/'))path+='index.php';const q=[...u.searchParams].filter(([k])=>k!=='v'&&k!=='t').sort((a,b)=>a[0]===b[0]?(a[1]<b[1]?-1:a[1]>b[1]?1:0):(a[0]<b[0]?-1:1));return path+'?'+new URLSearchParams(q).toString()}
+async function buildOfflineIndex(){const map=new Map(),pages=[];for(const name of await caches.keys()){if(name!==OFFLINE_SHELL&&!name.startsWith(PATIENT_CACHE))continue;const cache=await caches.open(name);for(const req of await cache.keys()){const key=normKey(req.url);if(!map.has(key))map.set(key,{name,url:req.url});const u=new URL(req.url);if(!u.searchParams.has('action'))pages.push({name,url:req.url,p:u.searchParams})}}return{map,pages}}
+function offlineCacheIndex(){if(!offlineIndex)offlineIndex=buildOfflineIndex().catch(e=>{offlineIndex=null;throw e});return offlineIndex}
+async function fromEntry(entry){if(!entry)return null;return (await caches.open(entry.name)).match(entry.url)}
+function dayNumber(d){const t=Date.parse(d+'T00:00:00Z');return isNaN(t)?null:t/864e5}
+function pickCachedPage(pages,want){
+  const pid=want.get('patient');if(!pid)return null;
+  const lib=want.get('library')||'',date=want.get('date')||'',view=want.get('view')==='gallery'?'gallery':'day',wantDay=date?dayNumber(date):null;
+  let best=null,bestScore=-Infinity;
+  for(const c of pages){
+    if(c.p.get('patient')!==pid)continue;
+    const cl=c.p.get('library')||'',cd=c.p.get('date')||'',cv=c.p.get('view')==='gallery'?'gallery':'day';
+    let score=0;
+    if(lib){if(cl===lib)score+=1000;else if(cl)score-=500}else if(!cl)score+=1000;
+    if(cv===view)score+=200;
+    if(wantDay!==null&&cd){const diff=dayNumber(cd)-wantDay;score+=100-Math.min(99,Math.abs(diff))-(diff>0?0.5:0)}
+    else if(wantDay===null){score+=cd?(dayNumber(cd)||0)/1e6:150}
+    if(score>bestScore){bestScore=score;best=c}
+  }
+  return best;
+}
+function offlineMissPage(){return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not saved for offline use</title><style>body{font:16px/1.5 system-ui,sans-serif;background:#f4f7f6;color:#163238;margin:0;display:grid;place-items:center;min-height:100vh}main{max-width:460px;margin:24px;padding:28px;background:#fff;border:1px solid #d7e3e0;border-radius:14px}a{color:#0f5c69;font-weight:700}</style></head><body><main><h1>Not saved for offline use</h1><p>Offline mode is on, and this page was not saved to this device.</p><p><a href="./index.php">Back to patients</a></p><p>To load it, turn Offline mode off while you have internet, or update the offline copy.</p></main></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}})}
+async function cacheOnly(request){
+  const url=new URL(request.url);
+  const exact=await caches.match(request);if(exact)return exact;
+  const {map,pages}=await offlineCacheIndex();
+  const hit=await fromEntry(map.get(normKey(url)));if(hit)return hit;
+  if(!url.searchParams.has('action')){
+    const page=await fromEntry(pickCachedPage(pages,url.searchParams));if(page)return page;
+    if(!url.searchParams.get('patient')){const front=await fromEntry(map.get(normKey(new URL('index.php',self.registration.scope))));if(front)return front}
+    return offlineMissPage();
+  }
+  return new Response('',{status:504,statusText:'Not saved for offline use'});
+}
+async function offlineResponse(request,url){
+  if(url.searchParams.get('action')==='version')return fetch(request).catch(()=>new Response(JSON.stringify({version:null,offline:true}),{status:503,headers:{'Content-Type':'application/json'}}));
+  return cacheOnly(request);
+}
 async function offlinePage(request){
   const exact=await caches.match(request);if(exact)return exact;
+  try{const {pages}=await offlineCacheIndex();const page=await fromEntry(pickCachedPage(pages,new URL(request.url).searchParams));if(page)return page}catch(e){}
   for(const key of await caches.keys()){
-    if(!key.startsWith(PATIENT_CACHE))continue;
+    if(!key.startsWith(PATIENT_CACHE)&&key!==OFFLINE_SHELL)continue;
     const cache=await caches.open(key);
-    const page=(await cache.keys()).find(entry=>{const url=new URL(entry.url);return url.searchParams.has('patient')&&!url.searchParams.has('action')});
+    const page=(await cache.keys()).find(entry=>{const url=new URL(entry.url);return !url.searchParams.has('action')});
     if(page){const response=await cache.match(page);if(response)return response;}
   }
   return new Response('<!doctype html><title>Offline</title><main><h1>Offline</h1><p>No synced record is available on this device.</p></main>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
 }
+function normalResponse(request,url){
+  if(url.searchParams.get('action')==='media')return caches.match(request).then(hit=>hit||fetch(request));
+  if(request.mode==='navigate')return fetch(request).catch(()=>offlinePage(request));
+  return fetch(request);
+}
 self.addEventListener('fetch',event=>{
-  const url=new URL(event.request.url);if(url.origin!==location.origin||event.request.method!=='GET')return;
-  if(url.searchParams.get('action')==='media'){event.respondWith(caches.match(event.request).then(hit=>hit||fetch(event.request)));return;}
-  if(event.request.mode==='navigate')event.respondWith(fetch(event.request).catch(()=>offlinePage(event.request)));
+  const request=event.request,url=new URL(request.url);if(url.origin!==location.origin||request.method!=='GET')return;
+  if(request.headers.get('X-SWCV-Fill')==='1')return;
+  if(url.searchParams.get('action')==='service-worker')return;
+  if(offlineOn===false){if(url.searchParams.get('action')==='media'||request.mode==='navigate')event.respondWith(normalResponse(request,url));return}
+  event.respondWith(readOfflineMode().then(on=>on?offlineResponse(request,url):normalResponse(request,url)));
 });
 JS;exit;}
 
@@ -971,7 +1021,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     } catch(Throwable $e){fail('Unable to complete request: '.$e->getMessage(),500);}
 }
 
-if(in_array($action,['media','avatar','avatar-generic','avatar-placeholder','sync-manifest','snapshot','replay'],true)&&!$authed)fail('Authentication required.',401);
+if(in_array($action,['media','avatar','avatar-generic','avatar-placeholder','sync-manifest','snapshot','replay','offline-plan'],true)&&!$authed)fail('Authentication required.',401);
 if($action==='avatar'){
     $d=load_data();$p=patient_profile($d);$file=basename((string)$p['avatar']);
     if(!preg_match('/^[A-Za-z0-9._-]+\.(svg|png|jpe?g|webp)$/',$file))fail('Avatar unavailable.',404);
@@ -999,6 +1049,36 @@ if($action==='avatar-placeholder'){
 if($action==='media'){$d=load_data();$pid=(string)($_GET['id']??'');foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $date=>$u)foreach($u['photos'] as $p)if($p['id']===$pid){$path="$patientDir/libraries/{$l['id']}/wounds/{$w['id']}/$date/{$p['filename']}";if(!is_file($path))fail('Media unavailable.',404);header('Content-Type: '.$p['mime']);header('Content-Length: '.filesize($path));header('Cache-Control: private, max-age=31536000, immutable');header('X-Content-Type-Options: nosniff');readfile($path);exit;}fail('Media not found.',404);}
 if($action==='snapshot'){header('Content-Type: application/json');echo json_encode(load_data(),JSON_UNESCAPED_SLASHES);exit;}
 if($action==='sync-manifest'){$d=load_data();$media=[];$bytes=0;foreach($d['libraries'] as $l)foreach($l['wounds'] as $w)foreach($w['updates'] as $u)foreach($u['photos'] as $p){$url='index.php?action=media&patient='.rawurlencode(active_patient_id()).'&id='.$p['id'].'&v='.$l['revision'];$media[]=['id'=>$p['id'],'url'=>$url,'bytes'=>$p['bytes']??0];$bytes+=$p['bytes']??0;}header('Content-Type: application/json');echo json_encode(['patient_id'=>active_patient_id(),'revision'=>$d['revision'],'generated_at'=>now(),'snapshot_url'=>'index.php?action=snapshot&patient='.rawurlencode(active_patient_id()).'&v='.$d['revision'],'media'=>$media,'photo_count'=>count($media),'total_bytes'=>$bytes]);exit;}
+if($action==='offline-plan'){
+    global $root,$account;$dir=$root.'/patients';$only=(string)($_GET['only']??'');$today=gmdate('Y-m-d');$out=[];
+    foreach(scandir($dir)?:[] as $id){
+        if($id==='.'||$id==='..'||!safe_id($id)||!is_file("$dir/$id/record.json"))continue;
+        if(is_array($account)&&!account_can_access($account,$id))continue;
+        if($only!==''&&$only!==$id)continue;
+        $raw=@file_get_contents("$dir/$id/record.json");$rec=$raw===false?null:json_decode($raw,true);if(!is_array($rec))continue;
+        $profile=patient_profile($rec);$q='patient='.rawurlencode($id);
+        $pages=['index.php?'.$q];$media=[];$bytes=0;
+        foreach(($rec['libraries']??[]) as $l){
+            $lq=$q.'&library='.rawurlencode((string)$l['id']);$start=(string)($l['start_date']??$today);
+            $pages[]='index.php?'.$lq.'&view=day';$pages[]='index.php?'.$lq.'&view=gallery';
+            $dates=[$start=>1,$today=>1];
+            foreach(array_keys(is_array($l['day_notes']??null)?$l['day_notes']:[]) as $dt)$dates[(string)$dt]=1;
+            foreach(($l['wounds']??[]) as $w)foreach(($w['updates']??[]) as $dt=>$u){
+                $dates[(string)$dt]=1;
+                foreach(($u['photos']??[]) as $ph){
+                    $b=(int)($ph['bytes']??0);if($b<=0){$f="$dir/$id/libraries/{$l['id']}/wounds/{$w['id']}/$dt/".($ph['filename']??'');$b=is_file($f)?(int)filesize($f):0;}
+                    $media[]=['url'=>'index.php?action=media&'.$q.'&id='.rawurlencode((string)$ph['id']).'&v='.(int)($l['revision']??0),'bytes'=>$b];$bytes+=$b;
+                }
+            }
+            ksort($dates);
+            foreach(array_keys($dates) as $dt)if(preg_match('/^\d{4}-\d{2}-\d{2}$/',(string)$dt)&&$dt>=$start&&$dt<=$today)$pages[]='index.php?'.$lq.'&date='.$dt.'&view=day';
+            $pages[]='index.php?'.$lq.'&date='.$today.'&view=gallery';
+        }
+        $out[]=['id'=>$id,'name'=>(string)($profile['name']??$id),'revision'=>(int)($rec['revision']??0),'snapshot_url'=>'index.php?action=snapshot&'.$q.'&v='.(int)($rec['revision']??0),'pages'=>array_values(array_unique($pages)),'media'=>$media,'photo_count'=>count($media),'photo_bytes'=>$bytes];
+    }
+    header('Content-Type: application/json');header('Cache-Control: no-store');
+    echo json_encode(['version'=>APP_VERSION,'generated_at'=>now(),'page_bytes_estimate'=>strlen(css())+strlen(js())+60000,'shell'=>['index.php','index.php?action=manifest&v='.APP_VERSION,'index.php?action=icon&size=192&format=png','index.php?action=icon&size=512&format=png','index.php?action=icon&size=512'],'patients'=>$out],JSON_UNESCAPED_SLASHES);exit;
+}
 if($action==='replay'){fail('Use the online forms to review and apply pending changes.',409);}
 
 $csrf=$_SESSION['csrf']??'';$loginError=$_SESSION['login_error']??'';unset($_SESSION['login_error']);$flash=$_SESSION['flash']??'';unset($_SESSION['flash']);
