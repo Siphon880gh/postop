@@ -80,6 +80,24 @@ which is useful for isolated testing.
 
 ## Offline use
 
+### Offline mode (clinic with no internet)
+
+![Offline mode info](docs/offline-mode/info-popup.png)
+
+Before going somewhere without usable Wi-Fi, such as a clinic that does not share
+internet, tap **Offline mode** in the header (or under **App · Cache**) while you
+are still online. Pick the patients to save. The dialog shows the item count,
+the estimated size and the free browser storage. It then saves the front page,
+the app and each chosen patient's pages, records and photos (`n of N` progress)
+and switches the app to **cache-only**: every page and photo opens from this
+device, even on a connected network with no internet. Changes made while it is on
+are queued as pending and synced after you turn it off. A new app version is
+picked up automatically the next time the app is online, without leaving Offline
+mode. **App · Cache** shows on/off, last saved time, item count and size. Details
+and design notes are in [docs/OFFLINE_MODE.md](docs/OFFLINE_MODE.md).
+
+### Single-patient copy
+
 Use **Sync all to this device** from the patient workspace and accept the privacy
 warning. This deliberately downloads the complete patient snapshot and every
 full-size photo. Browser Cache Storage holds that replica; IndexedDB holds only
