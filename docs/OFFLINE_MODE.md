@@ -9,11 +9,11 @@ own code.
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| `APP_VERSION` | `define('APP_VERSION', …)` | First 10 hex chars of `sha1(filemtime:filesize)` of `index.php`. Any edit to the file changes it. |
+| `APP_VERSION` | `app_version()` / `define('APP_VERSION', …)` | First 10 hex chars of a SHA-1 over the contents of every shell file (`app_shell_files()`, currently `index.php`, which also holds the CSS, JS, service worker and offline-plan list). Any edit changes it, not only a change to mtime or size. |
 | `?action=version` | PHP | Returns `{version}` with `no-store`. The page calls it on load, on `pageshow` (bfcache) and on `visibilitychange`, and does a guarded `location.replace` when the server version differs. |
 | `?action=manifest` | PHP | Web app manifest (`start_url ./index.php`, scope `./`, icons from `?action=icon`). Linked with `&v=APP_VERSION`. |
 | `?action=service-worker` | PHP | Service worker script, `no-store`, registered with `&v=APP_VERSION` and `updateViaCache:'none'`, so every code change installs a new worker. A `controllerchange` triggers one reload. |
-| Shell cache `swcv-shell-<version>` | SW `install` | Holds only a metadata entry (`./__swcv-cache-meta`: version + cachedAt). The HTML shell itself was **not** precached. Old versions are deleted on `activate`. |
+| Shell cache `swcv-shell-<version>` | SW `install` | Holds only a metadata entry (`./__swcv-cache-meta`: version + cachedAt). The HTML shell itself was **not** precached. On `activate`, every other app-owned Cache Storage entry (`swcv-*`) is deleted except the current versioned shell and the Offline mode flag (`swcv-offline-state`), and clients are told so they can re-save. |
 | Patient caches `swcv-patient-<id>` | page JS `syncAll()` | **Sync all to this device** (sidebar of a patient page) downloads the snapshot JSON, one day page per calendar day per library, a gallery page per library and every full-size photo, for **one** patient. Progress is shown as photos `n / N`. IndexedDB `skin-wound-viewer` → `meta` stores completion per patient. |
 | SW `fetch` | SW | Only `GET` same-origin requests. `action=media` is cache-first. Navigations are network-first with a fallback to an exact cached match, then any cached page of any synced patient, then a 503 "Offline" page. Everything else goes straight to the network. |
 | Outbox | page JS `stage()` | When `navigator.onLine` is false, form submits (except logout) are serialized (fields + files) into IndexedDB `outbox`. **Review and sync N changes** replays them with `expected_revision` and stops on a 409 conflict. |
@@ -51,12 +51,18 @@ page) with an **(i)** button, and the same toggle plus a status panel inside
    is preselected. It measures one real page to estimate size and shows
    `items · about N MB (M still to download) · F free in this browser`. It warns
    above 300 MB or above 80% of free quota, and disables Save when it cannot fit.
-3. **Save and turn on** downloads with 4 parallel workers, shows `Saving n of N ·
-   size` in a progress bar and on the header chip (`n/N`), skips photos already
-   cached (photo URLs are immutable, `&v=` = library revision), and harvests avatar
-   and icon URLs from the saved front page and patient landing pages.
-   Precache fetches send `X-SWCV-Fill: 1`, which the service worker always lets
-   through to the network.
+3. **Save and turn on** (and **Update offline copy**, and the automatic re-save
+   when a new app version is detected) first flushes any queued writes from the
+   IndexedDB outbox, then invalidates every app-owned Cache Storage entry
+   (`swcv-*`) and the IndexedDB `meta` store (completion records). The outbox is
+   not cleared before those writes are flushed. It then re-fetches every URL in
+   the offline plan with 4 parallel workers, shows `Saving n of N · size` in a
+   progress bar and on the header chip (`n/N`), and harvests avatar and icon
+   URLs from the saved front page and patient landing pages. Only real, ok
+   responses are stored: non-ok, opaque, error, or redirected fallback responses,
+   and the service worker's own offline placeholder pages (`X-SWCV-Offline`),
+   are never cached under the real request URL. Precache fetches send
+   `X-SWCV-Fill: 1`, which the service worker always lets through to the network.
 4. Failures are listed. A `QuotaExceededError` stops the run and leaves Offline
    mode **off**. If the front page itself fails, Offline mode stays off.
 5. On success the state `{on, at, version, patients, items, bytes, failed}` is
@@ -92,13 +98,16 @@ network-first fallback and can be removed with the × on the device-copy card.
   is on. Turning it off asks to review and sync now. Replay stops on a 409
   conflict and keeps the remaining items. Logout now warns before deleting
   unsynced changes, because logout sends `Clear-Site-Data`.
-- **New versions are never trapped.** `APP_VERSION` still changes on every edit
-  to `index.php` (mtime + size), the service worker and manifest URLs still carry
-  `&v=APP_VERSION`, and the browser fetches the service worker script outside the
-  cache. When a page loads online and `?action=version` differs, the page
-  re-saves the same patients (pages and data again, photos only if missing), keeps
-  Offline mode on and reloads into the new code. A sessionStorage guard prevents
-  loops. On failure, the status explains it and **Update offline copy** retries.
+- **New versions are never trapped.** `APP_VERSION` is a hash of the shell file
+  contents, the service worker, manifest, icons, avatars and offline-plan URLs
+  carry `&v=APP_VERSION`, and the browser fetches the service worker script
+  outside the cache. When a page loads online and `?action=version` differs, or
+  the new worker activates and clears old caches, the page flushes the outbox,
+  invalidates every app cache, re-fetches the whole plan, keeps Offline mode on
+  and reloads into the new code. A sessionStorage guard prevents loops. If the
+  saved front page is missing while online, the same rebuild runs instead of
+  treating it as an eviction. On failure, the status explains it and **Update
+  offline copy** retries.
 - **Only dated pages are saved**, not every calendar day. Dates without updates
   open the nearest saved date of that library. This keeps the copy roughly
   `pages × ~0.5–1 MB + photos`.
@@ -148,5 +157,8 @@ duplicate test patient, signed in as the public demo account:
    writes the flag to localStorage, Cache Storage and the service worker.
 4. While on, queue POSTs (IndexedDB outbox) and block replay until it is turned
    off. On a version mismatch while online, re-save and reload.
-5. Keep the version derived from the main file and put it in the service worker
-   and manifest URLs so every deploy reaches iPad Safari.
+5. Derive the version from the contents of the shell files (not only mtime/size),
+   put `&v=` on the service worker, manifest, icons and other generated assets,
+   include those versioned URLs in the offline plan, and on sync or a new version
+   flush queued writes then invalidate all app caches before re-fetching. Never
+   cache a placeholder or fallback response under a real URL.
