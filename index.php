@@ -850,6 +850,17 @@ self.addEventListener('install',event=>event.waitUntil(caches.open(SHELL).then(c
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('swcv-shell-')&&key!==SHELL).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('message',event=>{const m=event.data||{};if(m.type==='swcv-offline-mode'){offlineOn=!!m.on;offlineIndex=null}else if(m.type==='swcv-offline-reindex')offlineIndex=null});
 async function readOfflineMode(){if(offlineOn!==null)return offlineOn;try{const hit=await (await caches.open(OFFLINE_STATE)).match(OFFLINE_FLAG);offlineOn=hit?!!(await hit.json()).on:false}catch(e){offlineOn=false}return offlineOn}
+function isRealResponse(response,request){
+  if(!response||!response.ok)return false;
+  if(response.type==='opaque'||response.type==='opaqueredirect'||response.type==='error')return false;
+  if(response.redirected){
+    try{const want=new URL(request.url,self.registration.scope),got=new URL(response.url);if(want.origin!==got.origin||want.pathname!==got.pathname)return false}catch(e){return false}
+  }
+  const mark=response.headers.get('X-SWCV-Offline')||'';
+  if(mark==='miss'||mark==='placeholder'||mark==='fallback')return false;
+  return true;
+}
+async function putReal(cache,request,response){if(!isRealResponse(response,request))return false;await cache.put(request,response);return true;}
 function normKey(input){const u=new URL(input,self.registration.scope);let path=u.pathname;if(path.endsWith('/'))path+='index.php';const q=[...u.searchParams].filter(([k])=>k!=='v'&&k!=='t').sort((a,b)=>a[0]===b[0]?(a[1]<b[1]?-1:a[1]>b[1]?1:0):(a[0]<b[0]?-1:1));return path+'?'+new URLSearchParams(q).toString()}
 async function buildOfflineIndex(){const map=new Map(),pages=[];for(const name of await caches.keys()){if(name!==OFFLINE_SHELL&&!name.startsWith(PATIENT_CACHE))continue;const cache=await caches.open(name);for(const req of await cache.keys()){const key=normKey(req.url);if(!map.has(key))map.set(key,{name,url:req.url});const u=new URL(req.url);if(!u.searchParams.has('action'))pages.push({name,url:req.url,p:u.searchParams})}}return{map,pages}}
 function offlineCacheIndex(){if(!offlineIndex)offlineIndex=buildOfflineIndex().catch(e=>{offlineIndex=null;throw e});return offlineIndex}
@@ -871,7 +882,7 @@ function pickCachedPage(pages,want){
   }
   return best;
 }
-function offlineMissPage(){return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not saved for offline use</title><style>body{font:16px/1.5 system-ui,sans-serif;background:#f4f7f6;color:#163238;margin:0;display:grid;place-items:center;min-height:100vh}main{max-width:460px;margin:24px;padding:28px;background:#fff;border:1px solid #d7e3e0;border-radius:14px}a{color:#0f5c69;font-weight:700}</style></head><body><main><h1>Not saved for offline use</h1><p>Offline mode is on, and this page was not saved to this device.</p><p><a href="./index.php">Back to patients</a></p><p>To load it, turn Offline mode off while you have internet, or update the offline copy.</p></main></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}})}
+function offlineMissPage(){return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not saved for offline use</title><style>body{font:16px/1.5 system-ui,sans-serif;background:#f4f7f6;color:#163238;margin:0;display:grid;place-items:center;min-height:100vh}main{max-width:460px;margin:24px;padding:28px;background:#fff;border:1px solid #d7e3e0;border-radius:14px}a{color:#0f5c69;font-weight:700}</style></head><body><main><h1>Not saved for offline use</h1><p>Offline mode is on, and this page was not saved to this device.</p><p><a href="./index.php">Back to patients</a></p><p>To load it, turn Offline mode off while you have internet, or update the offline copy.</p></main></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8','X-SWCV-Offline':'miss'}})}
 async function cacheOnly(request){
   const url=new URL(request.url);
   const exact=await caches.match(request);if(exact)return exact;
@@ -882,7 +893,7 @@ async function cacheOnly(request){
     if(!url.searchParams.get('patient')){const front=await fromEntry(map.get(normKey(new URL('index.php',self.registration.scope))));if(front)return front}
     return offlineMissPage();
   }
-  return new Response('',{status:504,statusText:'Not saved for offline use'});
+  return new Response('',{status:504,statusText:'Not saved for offline use',headers:{'X-SWCV-Offline':'miss'}});
 }
 async function offlineResponse(request,url){
   if(url.searchParams.get('action')==='version')return fetch(request).catch(()=>new Response(JSON.stringify({version:null,offline:true}),{status:503,headers:{'Content-Type':'application/json'}}));
@@ -897,7 +908,7 @@ async function offlinePage(request){
     const page=(await cache.keys()).find(entry=>{const url=new URL(entry.url);return !url.searchParams.has('action')});
     if(page){const response=await cache.match(page);if(response)return response;}
   }
-  return new Response('<!doctype html><title>Offline</title><main><h1>Offline</h1><p>No synced record is available on this device.</p></main>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
+  return new Response('<!doctype html><title>Offline</title><main><h1>Offline</h1><p>No synced record is available on this device.</p></main>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8','X-SWCV-Offline':'placeholder'}});
 }
 function normalResponse(request,url){
   if(url.searchParams.get('action')==='media')return caches.match(request).then(hit=>hit||fetch(request));
@@ -2893,7 +2904,7 @@ async function syncAll(){
     let done=0,bytes=0;
     syncInfo.textContent=`Preparing ${manifest.photo_count} photos for offline use…`;
     const snapshot=await fillFetch(manifest.snapshot_url);
-    if(!snapshot.ok)throw Error('Snapshot failed');
+    rejectIfNotReal(snapshot,manifest.snapshot_url,'data');
     const data=await snapshot.clone().json();
     await cache.put(manifest.snapshot_url,snapshot);
     const today=new Date().toISOString().slice(0,10);
@@ -2903,18 +2914,18 @@ async function syncAll(){
         const date=day.toISOString().slice(0,10);
         const url=`index.php?patient=${encodeURIComponent(PATIENT_ID)}&library=${encodeURIComponent(library.id)}&date=${date}&view=day`;
         const page=await fillFetch(url);
-        if(!page.ok)throw Error('Offline page download failed');
+        rejectIfNotReal(page,url,'page');
         await cache.put(url,page);
         day.setDate(day.getDate()+1);
       }
       const galleryUrl=`index.php?patient=${encodeURIComponent(PATIENT_ID)}&library=${encodeURIComponent(library.id)}&date=${today}&view=gallery`;
       const gallery=await fillFetch(galleryUrl);
-      if(!gallery.ok)throw Error('Offline gallery download failed');
+      rejectIfNotReal(gallery,galleryUrl,'page');
       await cache.put(galleryUrl,gallery);
     }
     for(const media of manifest.media){
       const response=await fillFetch(media.url);
-      if(!response.ok)throw Error('Photo download failed');
+      rejectIfNotReal(response,media.url,'photo');
       await cache.put(media.url,response.clone());
       done++;bytes+=media.bytes;
       syncInfo.textContent=`Syncing ${done} / ${manifest.photo_count} photos · ${(bytes/1024).toFixed(1)} KB`;
@@ -2942,6 +2953,26 @@ let offlinePlan=null,offlineBusy=false,offlineProgressLabel='';
 function offlineState(){try{return JSON.parse(localStorage.getItem('swcv-offline-mode')||'null')||{on:false}}catch(e){return{on:false}}}
 function offlineModeOn(){return !!offlineState().on}
 function fillFetch(url,init){return fetch(url,Object.assign({credentials:'same-origin',cache:'no-store'},init||{},{headers:{'X-SWCV-Fill':'1'}}))}
+function isRealCacheableResponse(r,url){
+  if(!r||!r.ok)return false;
+  if(r.type==='opaque'||r.type==='opaqueredirect'||r.type==='error')return false;
+  if(r.redirected){try{const want=new URL(url,location.href),got=new URL(r.url);if(want.origin!==got.origin||want.pathname!==got.pathname)return false}catch(e){return false}}
+  const mark=r.headers.get('X-SWCV-Offline')||'';
+  if(mark==='miss'||mark==='placeholder'||mark==='fallback')return false;
+  return true;
+}
+function rejectIfNotReal(r,url,kind){
+  if(!isRealCacheableResponse(r,url)){
+    if(!r)throw Error('Empty response');
+    if(r.type==='opaque'||r.type==='opaqueredirect'||r.type==='error')throw Error('Not a real response');
+    if(r.redirected)throw Error('Redirected to a fallback');
+    if(r.headers.get('X-SWCV-Offline'))throw Error('Offline placeholder, not a real copy');
+    throw Error('HTTP '+(r.status||0));
+  }
+  const ct=r.headers.get('Content-Type')||'';
+  if(kind&&kind!=='page'&&/text\/html/i.test(ct))throw Error('Fallback HTML instead of the asset');
+  return r;
+}
 function fmtBytes(n){n=Number(n)||0;if(n<1048576)return Math.max(0,Math.round(n/1024))+' KB';if(n<1073741824)return (n/1048576).toFixed(n<10485760?1:0)+' MB';return (n/1073741824).toFixed(2)+' GB'}
 const offlineAbs=u=>new URL(u,location.href).href;
 async function offlineSwPost(msg){if(!navigator.serviceWorker)return;try{const reg=await navigator.serviceWorker.getRegistration();new Set([navigator.serviceWorker.controller,reg?.active,reg?.waiting,reg?.installing].filter(Boolean)).forEach(w=>{try{w.postMessage(msg)}catch(e){}})}catch(e){}}
@@ -3048,7 +3079,7 @@ async function runOfflineSave(ids,opts){
     const save=async it=>{
       try{
         const r=await fillFetch(it.url);
-        if(!r.ok)throw Error('HTTP '+r.status);
+        rejectIfNotReal(r,it.url,it.kind);
         const buf=await r.arrayBuffer(),type=r.headers.get('Content-Type')||'application/octet-stream';
         if(it.kind==='page'){const text=new TextDecoder().decode(buf);if(!text.includes('data-app-version'))throw Error('Signed out. Sign in again and retry.');if(it.harvest)for(const m of text.matchAll(/(?:src|href)="(index\.php\?action=(?:avatar|avatar-generic|avatar-placeholder|icon)[^"]*)"/g))assets.add(m[1].replace(/&amp;/g,'&'))}
         const cache=await caches.open(it.cache),res=new Response(buf,{status:200,headers:{'Content-Type':type,'X-SWCV-Saved':new Date().toISOString()}});
