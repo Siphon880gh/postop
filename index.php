@@ -618,7 +618,7 @@ function placeholder_avatar_picker(string $current): string {
     $o='<div class="avatar-picker">';
     $o.='<label class="avatar-pick"><input type="radio" name="avatar_choice" value="blank"'.($current==='blank'?' checked':'').'><span class="avatar-blank">'.blank_avatar_mark().'</span><span class="sr-only">Blank</span></label>';
     foreach(placeholder_avatar_files() as $file){
-        $src='index.php?action=avatar-placeholder&file='.rawurlencode($file);
+        $src=app_asset_url('index.php?action=avatar-placeholder&file='.rawurlencode($file));
         $o.='<label class="avatar-pick"><input type="radio" name="avatar_choice" value="'.h($file).'"'.($file===$current?' checked':'').'><img src="'.$src.'" alt="'.h(placeholder_avatar_label($file)).'"></label>';
     }
     return $o.'</div>';
@@ -839,7 +839,7 @@ function app_asset_url(string $url): string {
 }
 define('APP_VERSION',app_version());
 if($action==='version'){header('Content-Type: application/json');header('Cache-Control: no-store, no-cache, must-revalidate');echo json_encode(['version'=>APP_VERSION]);exit;}
-if($action==='manifest'){$host=(string)($_SERVER['HTTP_HOST']??'localhost');if(!preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/',$host))$host='localhost';$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$appUrl=$scheme.'://'.$host.(string)($_SERVER['SCRIPT_NAME']??'/index.php');header('Content-Type: application/manifest+json');header('Cache-Control: no-cache, must-revalidate');echo json_encode(['id'=>'./index.php','version'=>APP_VERSION,'name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'launch_handler'=>['client_mode'=>'focus-existing'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'related_applications'=>[['platform'=>'webapp','url'=>$appUrl.'?action=manifest','id'=>$appUrl]],'icons'=>[['src'=>'index.php?action=icon&size=192&format=png','sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512&format=png','sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>'index.php?action=icon&size=512','sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
+if($action==='manifest'){$host=(string)($_SERVER['HTTP_HOST']??'localhost');if(!preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/',$host))$host='localhost';$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$appUrl=$scheme.'://'.$host.(string)($_SERVER['SCRIPT_NAME']??'/index.php');header('Content-Type: application/manifest+json');header('Cache-Control: no-cache, must-revalidate');echo json_encode(['id'=>'./index.php','version'=>APP_VERSION,'name'=>APP_NAME,'short_name'=>'Wound Viewer','description'=>'A private wound-progress record viewer with user-controlled offline copies.','lang'=>'en','start_url'=>'./index.php','scope'=>'./','display'=>'standalone','display_override'=>['standalone','browser'],'launch_handler'=>['client_mode'=>'focus-existing'],'orientation'=>'any','background_color'=>'#f4f7f6','theme_color'=>'#164e63','categories'=>['medical','productivity'],'related_applications'=>[['platform'=>'webapp','url'=>app_asset_url($appUrl.'?action=manifest'),'id'=>$appUrl]],'icons'=>[['src'=>app_asset_url('index.php?action=icon&size=192&format=png'),'sizes'=>'192x192','type'=>'image/png','purpose'=>'any maskable'],['src'=>app_asset_url('index.php?action=icon&size=512&format=png'),'sizes'=>'512x512','type'=>'image/png','purpose'=>'any maskable'],['src'=>app_asset_url('index.php?action=icon&size=512'),'sizes'=>'any','type'=>'image/svg+xml','purpose'=>'any']]]);exit;}
 if($action==='icon'){$s=($_GET['size']??'192')==='512'?512:192;if(($_GET['format']??'')==='png'&&function_exists('imagecreatetruecolor')){header('Content-Type: image/png');$image=imagecreatetruecolor($s,$s);$blue=imagecolorallocate($image,22,78,99);$white=imagecolorallocate($image,255,255,255);imagefilledrectangle($image,0,0,$s,$s,$blue);$stroke=max(10,(int)round($s*.1));$start=(int)round($s*.28);$end=(int)round($s*.72);$middle=(int)round($s*.5);imagefilledrectangle($image,$start,$middle-(int)($stroke/2),$end,$middle+(int)($stroke/2),$white);imagefilledrectangle($image,$middle-(int)($stroke/2),$start,$middle+(int)($stroke/2),$end,$white);imagepng($image);imagedestroy($image);exit;}header('Content-Type: image/svg+xml');echo '<svg xmlns="http://www.w3.org/2000/svg" width="'.$s.'" height="'.$s.'"><rect width="100%" height="100%" rx="36" fill="#164e63"/><path d="M'.($s*.28).' '.($s*.5).'h'.($s*.44).'M'.($s*.5).' '.($s*.28).'v'.($s*.44).'" stroke="white" stroke-width="'.($s*.1).'" stroke-linecap="round"/></svg>';exit;}
 if($action==='service-worker'){header('Content-Type: application/javascript');header('Cache-Control: no-cache, no-store, must-revalidate');header('Service-Worker-Allowed: ./');echo "const APP_VERSION='".APP_VERSION."';\n";echo <<<'JS'
 const SHELL='swcv-shell-'+APP_VERSION,PATIENT_CACHE='swcv-patient-';
@@ -1091,7 +1091,7 @@ if($action==='offline-plan'){
     }
     header('Content-Type: application/json');header('Cache-Control: no-store');
     $assetBytes=0;foreach([placeholder_avatars_dir(),placeholders_dir()] as $ad)foreach(array_merge(glob($ad.'/*.png')?:[],glob($ad.'/*.svg')?:[]) as $af)$assetBytes+=(int)filesize($af);
-    echo json_encode(['version'=>APP_VERSION,'generated_at'=>now(),'page_bytes_estimate'=>strlen(css())+strlen(js())+60000,'asset_bytes_estimate'=>$assetBytes,'shell'=>['index.php','index.php?action=manifest&v='.APP_VERSION,'index.php?action=icon&size=192&format=png','index.php?action=icon&size=512&format=png','index.php?action=icon&size=512'],'patients'=>$out],JSON_UNESCAPED_SLASHES);exit;
+    echo json_encode(['version'=>APP_VERSION,'generated_at'=>now(),'page_bytes_estimate'=>strlen(css())+strlen(js())+60000,'asset_bytes_estimate'=>$assetBytes,'shell'=>['index.php',app_asset_url('index.php?action=manifest'),app_asset_url('index.php?action=icon&size=192&format=png'),app_asset_url('index.php?action=icon&size=512&format=png'),app_asset_url('index.php?action=icon&size=512'),app_asset_url('index.php?action=offline-plan')],'patients'=>$out],JSON_UNESCAPED_SLASHES);exit;
 }
 if($action==='replay'){fail('Use the online forms to review and apply pending changes.',409);}
 
@@ -1182,8 +1182,8 @@ function pencil_icon():string{return '<svg viewBox="0 0 24 24" aria-hidden="true
 function expand_icon():string{return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';}
 function avatar_markup(array $p,string $class='avatar'):string{
     if(is_blank_avatar((string)($p['avatar']??'')))return '<span class="'.$class.' avatar-empty" role="img" aria-label="No portrait">'.blank_avatar_mark().'</span>';
-    $src='index.php?action=avatar&patient='.rawurlencode((string)$p['id']).'&file='.rawurlencode((string)$p['avatar']);
-    $fallback='index.php?action=avatar-generic&gender='.rawurlencode((string)($p['gender']??'Female'));
+    $src=app_asset_url('index.php?action=avatar&patient='.rawurlencode((string)$p['id']).'&file='.rawurlencode((string)$p['avatar']));
+    $fallback=app_asset_url('index.php?action=avatar-generic&gender='.rawurlencode((string)($p['gender']??'Female')));
     return '<span class="'.$class.'"><img src="'.$src.'" data-fallback="'.h($fallback).'" onerror="this.onerror=null;this.src=this.dataset.fallback" alt="Portrait of '.h($p['name']).'"></span>';
 }
 function notes_trigger(string $id,int $count,string $kind='Notes'):string{
@@ -2968,7 +2968,7 @@ function renderOffline(){
   if(st.note)set('note',st.note);
   const upd=document.querySelector('[data-offline-update]');if(upd){upd.hidden=!st.at;upd.disabled=offlineBusy}
 }
-async function loadOfflinePlan(){const r=await fillFetch('index.php?action=offline-plan');if(!r.ok)throw Error(r.status===401?'Sign in again while you are online, then try again.':`Could not read what to save (HTTP ${r.status}).`);return r.json()}
+async function loadOfflinePlan(){const r=await fillFetch('index.php?action=offline-plan&v='+APP_VERSION);if(!r.ok)throw Error(r.status===401?'Sign in again while you are online, then try again.':`Could not read what to save (HTTP ${r.status}).`);return r.json()}
 async function offlineCachedUrls(){const set=new Set();if(!('caches'in window))return set;for(const name of await caches.keys()){if(name!==OFFLINE_SHELL&&!name.startsWith('swcv-patient-'))continue;for(const req of await (await caches.open(name)).keys())set.add(req.url)}return set}
 function offlineItems(plan,ids){
   const items=[];
